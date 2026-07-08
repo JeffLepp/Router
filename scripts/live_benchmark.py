@@ -121,6 +121,7 @@ def _dump_yaml(data: dict[str, Any], indent: int = 0) -> str:
 
 def _env_for_run(args: argparse.Namespace, mock_base_url: str | None) -> dict[str, str]:
     env = os.environ.copy()
+    _load_env_file(env, Path(args.env_file))
     if mock_base_url:
         env.update(
             {
@@ -144,6 +145,22 @@ def _env_for_run(args: argparse.Namespace, mock_base_url: str | None) -> dict[st
             + "\nSet them in your shell; do not paste API keys into chat."
         )
     return env
+
+
+def _load_env_file(env: dict[str, str], path: Path) -> None:
+    if not path.is_absolute():
+        path = ROOT / path
+    if not path.exists():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in env:
+            env[key] = value
 
 
 def _run_host(
@@ -329,6 +346,7 @@ def _print_report(report: dict[str, Any], max_failures: int) -> None:
     print(f"sources     gate={score['gate_proven']} remote={score['remote_called']} local/other={score['local_or_other']}")
     print(f"tokens      total={ledger.get('total_tokens', 0)} prompt={ledger.get('prompt_tokens', 0)} completion={ledger.get('completion_tokens', 0)}")
     print(f"requests    {ledger.get('requests', 0)}")
+    print(f"errors      remote={report['remote_errors']}")
     print(f"wall        {report['wall_s']:.2f}s")
     print(f"out_dir     {report['out_dir']}")
 
@@ -375,6 +393,7 @@ def main() -> int:
     parser.add_argument("--floor", choices=("floor-c", "floor-cl"), default="floor-c")
     parser.add_argument("--config", default=str(ROOT / "agent" / "config.yaml"))
     parser.add_argument("--container-image", help="run the benchmark inside this image")
+    parser.add_argument("--env-file", default=".env.local", help="local env file for Fireworks credentials")
     parser.add_argument("--out-dir", help="directory for results, ledger, and report")
     parser.add_argument("--wall-seconds", type=float, default=510.0)
     parser.add_argument("--remote-timeout", type=float, default=25.0)
@@ -430,6 +449,7 @@ def main() -> int:
     ledger = _read_json(work / "output" / "ledger.json", {})
     gate_ids = asyncio.run(_gate_proven_ids(tasks))
     score = _score(tasks, results, ledger, gate_ids, args.score_judge)
+    remote_errors = proc.stderr.count("remote_error ")
     report = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "runner": runner,
@@ -440,12 +460,13 @@ def main() -> int:
         "out_dir": str(out_dir),
         "stdout_tail": proc.stdout[-4000:],
         "stderr_tail": proc.stderr[-4000:],
+        "remote_errors": remote_errors,
         "ledger": ledger,
         "score": score,
     }
     _copy_artifacts(work, out_dir, report)
     _print_report(report, args.max_failures)
-    return 0 if score["missing"] == 0 else 1
+    return 0 if score["missing"] == 0 and remote_errors == 0 else 1
 
 
 if __name__ == "__main__":

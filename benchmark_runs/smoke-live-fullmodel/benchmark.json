@@ -1,0 +1,94 @@
+{
+  "created_at": "2026-07-08T08:55:02.916001+00:00",
+  "floor": "floor-c",
+  "ledger": {
+    "completion_tokens": 0,
+    "entries": [],
+    "estimated_usd": 0.0,
+    "prompt_tokens": 0,
+    "requests": 0,
+    "total_tokens": 0
+  },
+  "mock": false,
+  "out_dir": "benchmark_runs\\smoke-live-fullmodel",
+  "runner": "host",
+  "score": {
+    "accuracy": 0.0,
+    "failures": [
+      {
+        "answer": "",
+        "category": "actual_qa",
+        "error": "",
+        "method": "exact_match",
+        "task_id": "qa_001"
+      },
+      {
+        "answer": "",
+        "category": "actual_qa",
+        "error": "",
+        "method": "exact_match",
+        "task_id": "qa_002"
+      },
+      {
+        "answer": "",
+        "category": "actual_qa",
+        "error": "",
+        "method": "exact_match",
+        "task_id": "qa_003"
+      },
+      {
+        "answer": "",
+        "category": "actual_qa",
+        "error": "",
+        "method": "exact_match",
+        "task_id": "qa_004"
+      },
+      {
+        "answer": "",
+        "category": "actual_qa",
+        "error": "",
+        "method": "exact_match",
+        "task_id": "qa_005"
+      },
+      {
+        "answer": "",
+        "category": "actual_qa",
+        "error": "",
+        "method": "exact_match",
+        "task_id": "qa_006"
+      },
+      {
+        "answer": "",
+        "category": "actual_qa",
+        "error": "",
+        "method": "exact_match",
+        "task_id": "qa_007"
+      },
+      {
+        "answer": "",
+        "category": "actual_qa",
+        "error": "",
+        "method": "exact_match",
+        "task_id": "qa_008"
+      }
+    ],
+    "gate_proven": 0,
+    "local_or_other": 8,
+    "missing": 0,
+    "passed": 0,
+    "per_category": {
+      "actual_qa": {
+        "scored": 8,
+        "total": 8
+      }
+    },
+    "remote_called": 0,
+    "scored": 8,
+    "total": 8,
+    "unscored": 0
+  },
+  "score_judge": false,
+  "stderr_tail": "remote_error task_id=qa_008 error=remote call failed: Client error '404 Not Found' for url 'https://api.fireworks.ai/inference/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\nremote_error task_id=qa_002 error=remote call failed: Client error '404 Not Found' for url 'https://api.fireworks.ai/inference/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\nremote_error task_id=qa_006 error=remote call failed: Client error '404 Not Found' for url 'https://api.fireworks.ai/inference/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\nremote_error task_id=qa_005 error=remote call failed: Client error '404 Not Found' for url 'https://api.fireworks.ai/inference/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\nremote_error task_id=qa_007 error=remote call failed: Client error '404 Not Found' for url 'https://api.fireworks.ai/inference/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\nremote_error task_id=qa_003 error=remote call failed: Client error '404 Not Found' for url 'https://api.fireworks.ai/inference/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\nremote_error task_id=qa_004 error=remote call failed: Client error '404 Not Found' for url 'https://api.fireworks.ai/inference/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\nremote_error task_id=qa_001 error=remote call failed: Client error '404 Not Found' for url 'https://api.fireworks.ai/inference/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\n",
+  "stdout_tail": "TOKEN_LEDGER {\"completion_tokens\": 0, \"entries\": [], \"estimated_usd\": 0.0, \"prompt_tokens\": 0, \"requests\": 0, \"total_tokens\": 0}\n",
+  "wall_s": 2.758
+}
