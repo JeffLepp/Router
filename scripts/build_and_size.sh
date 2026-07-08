@@ -55,18 +55,21 @@ smoke() {
   mkdir -p "$work/input" "$work/output"
   cat > "$work/input/tasks.json" <<'JSON'
 [{"task_id":"t1","prompt":"What is 2 + 2?"},
- {"task_id":"t2","prompt":"Summarize: the cat sat on the mat."}]
+ {"task_id":"t2","prompt":"What is a GPU?"}]
 JSON
   # Self-contained smoke: m=0/B=0 disables the remote path (zero tokens, no net).
-  # awk, not pyyaml, so this runs on any build host. Flips only the enabled key
-  # inside the local_candidate block (batching.enabled is left alone).
+  # awk, not pyyaml, so this runs on any build host. Floor-CL enables one local
+  # category and uses the deterministic stub, so the smoke exercises local routing
+  # without paying real llama-server warmup.
   local en=false; [ "$enabled" = "1" ] && en=true
   awk -v en="$en" '
     /^local_candidate:/ {inlc=1}
-    /^[^ ]/ && !/^local_candidate:/ {inlc=0}
+    /^[^ ]/ && !/^local_candidate:/ {inlc=0; incats=0}
     /^token_budget:/ {print "token_budget: 0"; next}
     /^mandatory_remote:/ {print "mandatory_remote: 0"; next}
     inlc && /^  enabled:/ {print "  enabled: " en; next}
+    inlc && /^  categories:/ {incats=1; print; next}
+    inlc && incats && /^    actual_qa:/ {print "    actual_qa: " en; next}
     {print}
   ' "$ROOT/agent/config.yaml" > "$work/config.yaml"
   local input_mount output_mount config_mount
@@ -76,19 +79,22 @@ JSON
   echo "== smoke: $mode (enabled=$enabled) =="
   MSYS_NO_PATHCONV=1 docker run --rm --platform "$PLATFORM" \
     -e CONFIG_PATH=/cfg/config.yaml \
-    ${SMOKE_FORCE_STUB:+-e AGENT_FORCE_STUB=1} \
+    -e AGENT_FORCE_STUB=1 \
     -v "$input_mount:/input:ro" -v "$output_mount:/output" \
     -v "$config_mount:/cfg/config.yaml:ro" \
     "$IMAGE"
   local results_path
   results_path="$(docker_host_path "$work/output/results.json")"
-  python3 - "$results_path" <<'PY'
+  python3 - "$results_path" "$enabled" <<'PY'
 import json
 import sys
 
 d = json.load(open(sys.argv[1]))
 ids = {x["task_id"] for x in d}
 assert ids == {"t1", "t2"}, ids
+if sys.argv[2] == "1":
+    by_id = {x["task_id"]: x["answer"] for x in d}
+    assert by_id["t2"].strip(), by_id
 print("  valid results.json", ids)
 PY
   rm -rf "$work"

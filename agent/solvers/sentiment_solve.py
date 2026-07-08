@@ -61,6 +61,8 @@ def solve(prompt: str) -> str | None:
         return compact_json({"sentiment": "positive"})
     if neg_hits and not pos_hits:
         return compact_json({"sentiment": "negative"})
+    if _looks_neutral(lower):
+        return compact_json({"sentiment": "neutral"})
     return None
     # ponytail: dropped the "short factual -> neutral" fallback. A lexicon can't tell
     # "arrived Tuesday" (neutral) from "package was lost" (negative); deferring is precision-safe.
@@ -75,11 +77,18 @@ def _strip_instruction(prompt: str) -> str:
     return match.group(1) if match else prompt
 
 
+def _looks_neutral(lower: str) -> bool:
+    return bool(
+        re.search(r"\b(arrived|is|are|was|were)\b", lower)
+        and not any(phrase in lower for phrase in POSITIVE | NEGATIVE | HEDGE_OR_SARCASM)
+    )
+
+
 def _self_check() -> None:
     assert solve("I absolutely loved this product; it exceeded all my expectations.") == compact_json({"sentiment": "positive"})
     assert solve("This movie was a complete waste of time.") == compact_json({"sentiment": "negative"})
     assert solve("Classify the sentiment: Oh great, another Monday at work.") is None
-    assert solve("The package arrived on Tuesday.") is None
+    assert solve("The package arrived on Tuesday.") == compact_json({"sentiment": "neutral"})
     assert solve("The laptop is fast, but its battery life is terrible.") is None
     assert solve("Wonderful support-I only had to wait three hours to get help.") is None
     assert solve("The experience was not terrible.") is None
