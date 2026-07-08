@@ -93,6 +93,34 @@ def run_inline_examples(code: str, examples: list[str], timeout: float = 2.0) ->
     return ok
 
 
+def run_node(code: str, timeout: float = 2.0) -> tuple[bool, str]:
+    # ponytail: no JS AST sandbox (unlike run_python). Eval-only — scoring our own
+    # benchmark answers on the host, never the competition path. Harden if that changes.
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "snippet.js"
+        path.write_text(code, encoding="utf-8")
+        try:
+            proc = subprocess.run(
+                ["node", str(path)],
+                cwd=tmp,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except FileNotFoundError:
+            return False, "node not found"
+        except subprocess.TimeoutExpired:
+            return False, "timeout"
+        output = (proc.stdout + proc.stderr).strip()
+        return proc.returncode == 0, output
+
+
+def run_node_examples(code: str, examples: list[str], timeout: float = 2.0) -> bool:
+    harness = "const assert = require('node:assert');\n" + code + "\n\n" + "\n".join(examples) + "\n"
+    ok, _ = run_node(harness, timeout=timeout)
+    return ok
+
+
 def _self_check() -> None:
     assert syntax_ok("def add(a, b):\n    return a + b\n")
     assert not syntax_ok("def nope(:\n")
@@ -100,6 +128,10 @@ def _self_check() -> None:
     assert ok
     assert run_inline_examples("def add(a, b):\n    return a + b", ["assert add(2, 3) == 5"])
     assert not run_inline_examples("def add(a, b):\n    return a - b", ["assert add(2, 3) == 5"])
+    import shutil
+    if shutil.which("node"):
+        assert run_node_examples("function add(a,b){return a+b;}", ["assert.strictEqual(add(2,3),5);"])
+        assert not run_node_examples("function add(a,b){return a-b;}", ["assert.strictEqual(add(2,3),5);"])
     ok, output = run_python("while True:\n    pass\n", timeout=0.2)
     assert not ok and output == "timeout"
     ok, output = run_python("import socket\n")

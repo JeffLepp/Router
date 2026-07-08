@@ -40,7 +40,33 @@ CODE_TESTS: dict[str, list[str]] = {
     "gen_009": ["assert safe_divide(8, 2) == 4", "assert safe_divide(8, 0) is None"],
 }
 
+# JS tasks: real node execution (Node is on the scoring host). assert.* throws -> nonzero exit.
+CODE_TESTS_JS: dict[str, list[str]] = {
+    "debug_005": [
+        "assert.deepStrictEqual(filterEven([1, 2, 3, 4, 5, 6]), [2, 4, 6]);",
+        "assert.deepStrictEqual(filterEven([1, 3, 5]), []);",
+    ],
+    "gen_002": [
+        "assert.strictEqual(sumArray([1, 2, 3, 4]), 10);",
+        "assert.strictEqual(sumArray([]), 0);",
+    ],
+}
+
+# Java/C: no toolchain on the scoring host, so they can't run. In judged mode the eval-only
+# LLM judge (eval/judge.py, own key, never the competition path) rescores them; strict mode
+# leaves them on string-equality (so they read as failures until judged).
+JUDGE_CODE_IDS = {"debug_010", "gen_005", "gen_010"}
+
 _JUDGE_METHODS = {"semantic_similarity", "contains_essential_points"}
+
+
+def _strip_code_fence(text: Any) -> str:
+    s = str(text).strip()
+    if s.startswith("```"):
+        s = s.split("\n", 1)[1] if "\n" in s else ""
+        if s.rstrip().endswith("```"):
+            s = s.rstrip()[:-3]
+    return s.strip()
 
 
 def _as_obj(x: Any) -> Any:
@@ -175,22 +201,31 @@ def _logic(answer: Any, expected: Any) -> bool:
     return _norm_text(obj.get("answer")) == _norm_text(exp.get("answer"))
 
 
-def _code(answer: Any, expected: Any, task: dict | None) -> bool:
-    # Prefer running the task's real tests; else fall back to normalized code equality.
+def _code(answer: Any, expected: Any, task: dict | None, judge: bool = False) -> bool:
+    # Prefer running the task's real tests; else judge (if allowed); else code equality.
     tid = (task or {}).get("id")
     if tid == "debug_009" or (isinstance(expected, str) and "test should expect" in str(answer).lower()):
         low = str(answer).lower()
         return "correct" in low and "6" in low
+    code = _strip_code_fence(answer)
+    if tid in CODE_TESTS_JS:
+        from agent.verify.code_v import run_node_examples  # lazy: node subprocess
+
+        return run_node_examples(code, CODE_TESTS_JS[tid], timeout=2.0)
     if tid in CODE_TESTS:
         from agent.verify.code_v import run_inline_examples  # lazy: subprocess sandbox
 
-        return run_inline_examples(str(answer), CODE_TESTS[tid], timeout=1.0)
+        return run_inline_examples(code, CODE_TESTS[tid], timeout=1.0)
+    if judge and tid in JUDGE_CODE_IDS:
+        from eval.judge import judge_code  # lazy, eval-only, own key
+
+        return judge_code((task or {}).get("prompt", ""), code, expected)
     # ponytail: no test bank for this id -> string-equal the reference. Real launch scores
     # code via the task's own unit_tests; add ids to CODE_TESTS as devset grows.
-    return _norm_text(answer) == _norm_text(expected)
+    return _norm_text(code) == _norm_text(expected)
 
 
-def score_one(answer: Any, expected: Any, method: str, task: dict | None = None) -> bool:
+def score_one(answer: Any, expected: Any, method: str, task: dict | None = None, judge: bool = False) -> bool:
     if method in _JUDGE_METHODS:
         from eval.judge import judge_summary  # lazy: only summarization needs it
 
@@ -210,14 +245,14 @@ def score_one(answer: Any, expected: Any, method: str, task: dict | None = None)
     if method in {"boolean_logic", "constraint_logic"}:
         return _logic(answer, expected)
     if method in {"unit_tests", "review_comment", "query_validation", "query_match", "schema_match"}:
-        return _code(answer, expected, task)
+        return _code(answer, expected, task, judge=judge)
     if method == "exact_match":
         return _exact(answer, expected)
     raise ValueError(f"unknown evaluation_method: {method}")
 
 
-def score_task(task: dict, answer: Any) -> bool:
-    return score_one(answer, task["expected_answer"], task["evaluation_method"], task)
+def score_task(task: dict, answer: Any, judge: bool = False) -> bool:
+    return score_one(answer, task["expected_answer"], task["evaluation_method"], task, judge=judge)
 
 
 def _demo() -> None:

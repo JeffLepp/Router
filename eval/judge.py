@@ -80,21 +80,12 @@ def _offline_judge(answer: Any, expected: Any, method: str) -> bool:
     return True
 
 
-def _remote_judge(prompt: str, answer: Any, expected: Any, method: str) -> bool:
+def _remote_verdict(rubric: str, content: str) -> bool:
     import httpx  # own-key path only
 
     base = os.environ["FIREWORKS_BASE_URL"].rstrip("/")
     key = os.environ["FIREWORKS_API_KEY"]
     model = (os.environ.get("ALLOWED_MODELS", "").split(",") or ["accounts/fireworks/models/llama-v3p1-8b-instruct"])[0].strip()
-    rubric = (
-        "You are a strict grader. Reply with exactly PASS or FAIL. "
-        "PASS only if the candidate summary conveys every essential point of the reference "
-        "and adds no factual errors."
-    )
-    content = (
-        f"REFERENCE:\n{json.dumps(_expected_texts(expected))}\n\n"
-        f"CANDIDATE:\n{_answer_text(answer)}\n\nGrade (PASS/FAIL):"
-    )
     resp = httpx.post(
         f"{base}/chat/completions",
         headers={"Authorization": f"Bearer {key}"},
@@ -112,6 +103,40 @@ def _remote_judge(prompt: str, answer: Any, expected: Any, method: str) -> bool:
     resp.raise_for_status()
     verdict = resp.json()["choices"][0]["message"]["content"].strip().upper()
     return verdict.startswith("PASS")
+
+
+def _remote_judge(prompt: str, answer: Any, expected: Any, method: str) -> bool:
+    rubric = (
+        "You are a strict grader. Reply with exactly PASS or FAIL. "
+        "PASS only if the candidate summary conveys every essential point of the reference "
+        "and adds no factual errors."
+    )
+    content = (
+        f"REFERENCE:\n{json.dumps(_expected_texts(expected))}\n\n"
+        f"CANDIDATE:\n{_answer_text(answer)}\n\nGrade (PASS/FAIL):"
+    )
+    return _remote_verdict(rubric, content)
+
+
+_CODE_RUBRIC = (
+    "You are a strict code grader. Reply with exactly PASS or FAIL. "
+    "PASS only if the CANDIDATE code correctly and completely implements the same spec as the "
+    "REFERENCE solution — same behavior on all inputs — ignoring formatting, naming, and style. "
+    "FAIL if it is incomplete, truncated, or would behave differently on any input."
+)
+
+
+def judge_code(prompt: str, answer: Any, expected: Any) -> bool:
+    """Eval-only rescue for code tasks whose language has no toolchain on the scoring host
+    (Java/C). Own key, never the competition token path. Offline fallback = content-word
+    overlap (CI stand-in); the real launch-day grader is the remote path — set the key."""
+    if os.environ.get("EVAL_JUDGE_OFFLINE") == "1" or not os.environ.get("FIREWORKS_API_KEY"):
+        return _offline_judge(answer, expected, "code")
+    content = (
+        f"SPEC:\n{prompt}\n\nREFERENCE:\n{_answer_text(expected)}\n\n"
+        f"CANDIDATE:\n{_answer_text(answer)}\n\nGrade (PASS/FAIL):"
+    )
+    return _remote_verdict(_CODE_RUBRIC, content)  # [own-key]
 
 
 def judge_summary(prompt: str, answer: Any, expected: Any, method: str) -> bool:
