@@ -64,7 +64,7 @@ Root files:
 Core agent:
 
 - `agent/main.py`: orchestrator, input/output contract, atomic snapshots, classification, gate, local tier, remote calls.
-- `agent/classify.py`: maps prompts into the 8 canonical categories.
+- `agent/classify.py`: maps prompts into the 8 canonical categories. Weak cues need corroboration — `how many/much` only routes math with a second signal (standalone number / math verb / ×÷), keeping factual "how many …" on `actual_qa`.
 - `agent/gate.py`: dispatches deterministic zero-token solvers.
 - `agent/contracts.py`: remote prompt contracts, max-token caps, and final answer assembly.
 - `agent/remote.py`: Fireworks client, `ALLOWED_MODELS` parsing, model routing, token ledger.
@@ -120,6 +120,13 @@ Latest trusted live run artifact: `benchmark_runs/live-official-accessible-floor
 - Fireworks: 42 requests, 7,719 tokens, 0 remote errors.
 - All 24 scored failures were remote-path failures.
 - Main weak spot: remote answer quality/format, not CPU/GPU or local runtime.
+
+Latest mock regression gate (`live_benchmark --mock --score-judge`, Floor-C, both
+runs re-scored with the current scorer): strict/judged `38/80 → 40/80` vs Prompt-0
+baseline, **zero pass→fail flips**, only `sentiment_analysis` moved (3→5), `qa_010`
+now routes `actual_qa`. Mock tokens rose `2,317 → 3,318` (all prompt tokens, from
+the hardened contracts) — confirm real net cost on a live key. Gate/transport/token
+modules byte-identical to HEAD.
 
 Next accuracy work should start with `FABLE5_TODO.md`.
 
