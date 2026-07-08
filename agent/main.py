@@ -15,6 +15,8 @@ from agent.classify import classify
 from agent.config import AgentConfig
 from agent.contracts import build_contracts
 from agent.gate import solve as gate_solve
+from agent.local_gate import try_local
+from agent.local_llm import make_local_client
 
 
 @dataclass
@@ -117,6 +119,10 @@ async def _snapshot_loop(writer: SnapshotWriter, interval: float, stop: asyncio.
 async def _prepare_one(
     state: TaskState,
     contracts: dict[str, Any],
+    config: AgentConfig,
+    local_client: Any | None,
+    deadline: float,
+    remaining_tasks: int,
     writer: SnapshotWriter,
     semaphore: asyncio.Semaphore,
 ) -> None:
@@ -132,10 +138,26 @@ async def _prepare_one(
             state.source = "gate"
             state.confidence = 1.0
         else:
-            contract = contracts[state.category]
-            state.remote_prompt = contract.remote_prompt(state.task.prompt)
-            state.remote_max_tokens = contract.max_tokens
-            state.source = "deferred"
+            local_answer = await try_local(
+                state.category,
+                state.task.prompt,
+                config=config.local_candidate,
+                llama_config=config.llama,
+                client=local_client,
+                deadline=deadline,
+                remaining_tasks=remaining_tasks,
+                classification_confidence=classification.confidence,
+                parallelism=config.local_slots,
+            )
+            if local_answer is not None:
+                state.answer = local_answer
+                state.source = "local"
+                state.confidence = max(state.confidence, 0.9)
+            else:
+                contract = contracts[state.category]
+                state.remote_prompt = contract.remote_prompt(state.task.prompt)
+                state.remote_max_tokens = contract.max_tokens
+                state.source = "deferred"
     await writer.write()
 
 
@@ -250,10 +272,25 @@ async def run_agent() -> int:
     contracts = build_contracts(config.max_tokens)
     local_sem = asyncio.Semaphore(config.local_slots)
     state_list = list(states.values())
+    local_client = None
+    if bool(config.local_candidate.get("enabled", False)):
+        local_client = await make_local_client(config.llama, config.local_candidate)
 
     try:
         await asyncio.gather(
-            *(_prepare_one(state, contracts, writer, local_sem) for state in state_list)
+            *(
+                _prepare_one(
+                    state,
+                    contracts,
+                    config,
+                    local_client,
+                    deadline,
+                    len(state_list),
+                    writer,
+                    local_sem,
+                )
+                for state in state_list
+            )
         )
         remote_client = await _run_remote(state_list, config, contracts, writer, deadline)
         await writer.write()

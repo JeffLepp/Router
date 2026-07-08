@@ -284,6 +284,8 @@ def test_verifiers() -> None:
         "agent.verify.logic_v",
         "agent.gate",
         "agent.contracts",
+        "agent.local_llm",
+        "agent.local_gate",
         "agent.batcher",
         "agent.remote",
         "agent.solvers.arithmetic",
