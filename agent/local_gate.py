@@ -12,6 +12,13 @@ from agent.classify import canonical_category
 from agent.config import AgentConfig
 from agent.local_llm import LocalResult, make_local_client, normalize_sample
 from agent.solvers.common import compact_json
+from agent.solvers.ner_solve import (
+    EVENT_PATTERNS,
+    LOCATION_NAMES,
+    MONTHS,
+    ORG_NAMES,
+    _looks_like_person,
+)
 from agent.solvers.sentiment_solve import solve as lexicon_sentiment
 from agent.verify import code_v, format_v, logic_v, math_v
 
@@ -19,6 +26,12 @@ from agent.verify import code_v, format_v, logic_v, math_v
 _SKIP_WITHOUT_GENERATION = {"summarization"}
 _LABELS = {"positive", "negative", "neutral", "mixed"}
 _ORDER_NAME = r"[A-Z][A-Za-z0-9_]*"
+_MONEY_RE = re.compile(r"^\$\d[\d,]*(?:\.\d+)?(?:\s+(?:million|billion|thousand))?$", re.I)
+_DATE_RE = re.compile(rf"^(?:{MONTHS})\s+\d{{1,2}},\s+\d{{4}}$|^(?:{MONTHS})\s+\d{{4}}$")
+_ADDRESS_RE = re.compile(
+    r"^\d+\s+[A-Z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*)*\s+"
+    r"(?:Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Drive|Dr)$"
+)
 
 
 async def try_local(
@@ -307,8 +320,39 @@ def _accept_ner(prompt: str, candidate: str) -> str | None:
     spans = [entity["text"] for entity in entities]
     if not format_v.entities_are_substrings(prompt, spans):
         return None
+    # F6: every emitted (text, type) must be corroborated, or we can't trust the label.
+    if not all(_ner_type_corroborated(e["text"], e["type"]) for e in entities):
+        return None
     payload = compact_json({"entities": entities})
     return payload if format_v.valid_entities_shape(payload) else None
+
+
+def _ner_type_corroborated(text: str, type_: str) -> bool:
+    """Only trust a (text, type) pair the deterministic layer would also emit.
+
+    Open-class types with no gazetteer/surface evidence are NOT corroborated -> defer.
+    ponytail: with no real NER model, this ceilings local NER at gate-NER trust; that is
+    the point. Flipping named_entity_recognition on adds ~0 recall but stays precision-safe.
+    Upgrade path: a trusted NER model would replace this with its own confidence gate.
+    """
+    t = type_.strip().upper()
+    if t in {"PERSON", "CUSTOMER"}:
+        return _looks_like_person(text)
+    if t == "ORGANIZATION":
+        return text in ORG_NAMES
+    if t == "LOCATION":
+        return text in LOCATION_NAMES
+    if t == "MONEY":
+        return bool(_MONEY_RE.match(text))
+    if t == "DATE":
+        return bool(_DATE_RE.match(text))
+    if t == "MLS_NUMBER":
+        return text.isdigit()
+    if t == "PROPERTY_ADDRESS":
+        return bool(_ADDRESS_RE.match(text))
+    if t == "EVENT":
+        return any(re.fullmatch(pattern, text) for pattern in EVENT_PATTERNS)
+    return False  # unknown type -> cannot corroborate -> defer
 
 
 def _parse_entities(candidate: str) -> list[dict[str, str]] | None:
@@ -365,10 +409,11 @@ def _accept_sentiment(prompt: str, samples: list[str], expected_k: int) -> str |
     if not labels or labels[0] is None:
         return None
     candidate = labels[0]
-    lexicon = _lexicon_label(prompt)
-    if lexicon is not None:
-        return compact_json({"sentiment": candidate}) if candidate == lexicon else None
+    # Self-consistency is always required; the lexicon can only veto.
     if len(labels) < expected_k or any(label != candidate for label in labels[:expected_k]):
+        return None
+    lexicon = _lexicon_label(prompt)
+    if lexicon is not None and candidate != lexicon:
         return None
     return compact_json({"sentiment": candidate})
 
