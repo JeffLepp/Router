@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import sys
@@ -15,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from agent.classify import classify
 from agent.gate import solve as gate_solve
 from agent.verify.code_v import run_inline_examples, run_python
 from scripts.acceptance_p1 import (
@@ -55,6 +57,35 @@ def test_gate_precision_recall() -> None:
         recall = answered[category] / totals[category]
         print(f"GATE_RECALL {category} {answered[category]}/{totals[category]} {recall:.1%}")
     _assert_holdout_precision()
+
+
+def test_phase0a_classifier_routes() -> None:
+    rows = {item["id"]: item for item in load_dataset()}
+    target_ids = (
+        "sentiment_006",
+        "sentiment_007",
+        "sentiment_008",
+        "sentiment_009",
+        "sentiment_010",
+        "gen_002",
+        "logic_005",
+    )
+
+    async def classify_targets() -> dict[str, str]:
+        routed: dict[str, str] = {}
+        for task_id in target_ids:
+            result = await classify(rows[task_id]["prompt"], None)
+            routed[task_id] = result.category
+        return routed
+
+    routed = asyncio.run(classify_targets())
+    wrong = [
+        (task_id, rows[task_id]["category"], routed[task_id])
+        for task_id in target_ids
+        if routed[task_id] != rows[task_id]["category"]
+    ]
+    assert not wrong, "wrong Phase 0A classifier routes: " + repr(wrong)
+    print("CLASSIFIER_PHASE0A sentiment=5 code_generation=1 logic_puzzles=1")
 
 
 def _assert_holdout_precision() -> None:
@@ -245,6 +276,7 @@ def test_code_sandbox_guards() -> None:
 
 
 def main() -> None:
+    test_phase0a_classifier_routes()
     test_gate_precision_recall()
     test_trap_defer_cases()
     test_pipeline_remote_drop()

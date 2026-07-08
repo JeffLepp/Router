@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 import json
 import os
 import shutil
@@ -256,6 +257,26 @@ async def _gate_proven_ids(tasks: list[dict[str, Any]]) -> set[str]:
     return proven
 
 
+def _route_of(task_id: str, gate_ids: set[str], remote_ids: set[str]) -> str:
+    if task_id in gate_ids:
+        return "gate"
+    if task_id in remote_ids:
+        return "remote"
+    return "local/other"
+
+
+def _acc_rate(bucket: dict[str, dict[str, int]]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for key, counts in sorted(bucket.items()):
+        scored = counts["scored"]
+        out[key] = {
+            "passed": counts["passed"],
+            "scored": scored,
+            "accuracy": round(counts["passed"] / scored, 4) if scored else None,
+        }
+    return out
+
+
 def _score(
     tasks: list[dict[str, Any]],
     results: list[dict[str, Any]],
@@ -266,16 +287,23 @@ def _score(
     from eval.score import score_task
 
     by_result = {str(row.get("task_id")): str(row.get("answer", "")) for row in results}
-    remote_ids = {str(entry.get("task_id")) for entry in ledger.get("entries", [])}
+    ledger_by_task = {str(e.get("task_id")): e for e in ledger.get("entries", [])}
+    remote_ids = set(ledger_by_task)
     per_category: dict[str, Counter[str]] = defaultdict(Counter)
     failures: list[dict[str, Any]] = []
+    by_route: dict[str, dict[str, int]] = defaultdict(lambda: {"passed": 0, "scored": 0})
+    by_model: dict[str, dict[str, int]] = defaultdict(lambda: {"passed": 0, "scored": 0})
+    tokens_by_category: dict[str, int] = defaultdict(int)
 
-    total = passed = scored = unscored = missing = 0
+    total = passed = passed_judged = scored = unscored = missing = 0
     for index, task in enumerate(tasks):
         task_id = str(task.get("task_id") or task.get("id") or f"task_{index}")
         category = str(task.get("category", "unknown"))
         method = str(task.get("evaluation_method", ""))
         answer = by_result.get(task_id, "")
+        entry = ledger_by_task.get(task_id)
+        route = _route_of(task_id, gate_ids, remote_ids)
+        model = str(entry.get("model") or route) if entry else route
 
         total += 1
         per_category[category]["total"] += 1
@@ -283,6 +311,8 @@ def _score(
             per_category[category]["gate"] += 1
         if task_id in remote_ids:
             per_category[category]["remote"] += 1
+        if entry:
+            tokens_by_category[category] += int(entry.get("total_tokens", 0))
         if task_id not in by_result:
             missing += 1
             per_category[category]["missing"] += 1
@@ -294,6 +324,8 @@ def _score(
 
         scored += 1
         per_category[category]["scored"] += 1
+        by_route[route]["scored"] += 1
+        by_model[model]["scored"] += 1
         try:
             ok = bool(score_task(task, answer))
         except Exception as exc:
@@ -301,15 +333,28 @@ def _score(
             error = str(exc)
         else:
             error = ""
+        # accuracy_judged: strict + eval-only judge rescue of Java/C code (own key, off-path).
+        try:
+            passed_judged += 1 if (ok or score_task(task, answer, judge=True)) else 0
+        except Exception:
+            passed_judged += 1 if ok else 0
         if ok:
             passed += 1
             per_category[category]["passed"] += 1
+            by_route[route]["passed"] += 1
+            by_model[model]["passed"] += 1
         else:
             failures.append(
                 {
                     "task_id": task_id,
                     "category": category,
+                    "route": route,
+                    "model": model,
+                    "tokens": int(entry.get("total_tokens", 0)) if entry else 0,
                     "method": method,
+                    "expected": str(task.get("expected_answer", "")),
+                    "actual": answer,
+                    "prompt": str(task.get("prompt", "")),
                     "answer": answer[:500],
                     "error": error,
                 }
@@ -323,10 +368,15 @@ def _score(
         "unscored": unscored,
         "missing": missing,
         "accuracy": round(passed / scored, 4) if scored else None,
+        "accuracy_strict": round(passed / scored, 4) if scored else None,
+        "accuracy_judged": round(passed_judged / scored, 4) if scored else None,
         "gate_proven": len(gate_ids),
         "remote_called": len(remote_ids),
         "local_or_other": max(0, local_or_other),
         "per_category": {cat: dict(counts) for cat, counts in sorted(per_category.items())},
+        "accuracy_by_route": _acc_rate(by_route),
+        "accuracy_by_model": _acc_rate(by_model),
+        "tokens_by_category": dict(sorted(tokens_by_category.items())),
         "failures": failures,
     }
 
@@ -342,7 +392,7 @@ def _print_report(report: dict[str, Any], max_failures: int) -> None:
     if score["accuracy"] is None:
         print("accuracy    n/a")
     else:
-        print(f"accuracy    {score['passed']}/{score['scored']} ({score['accuracy']:.2%})")
+        print(f"accuracy    strict {score['accuracy_strict']:.2%}  judged {score['accuracy_judged']:.2%}  ({score['passed']}/{score['scored']} strict)")
     print(f"sources     gate={score['gate_proven']} remote={score['remote_called']} local/other={score['local_or_other']}")
     print(f"tokens      total={ledger.get('total_tokens', 0)} prompt={ledger.get('prompt_tokens', 0)} completion={ledger.get('completion_tokens', 0)}")
     print(f"requests    {ledger.get('requests', 0)}")
@@ -368,6 +418,19 @@ def _print_report(report: dict[str, Any], max_failures: int) -> None:
             )
 
 
+FAILURE_CSV_FIELDS = [
+    "task_id", "category", "route", "model", "tokens", "method", "expected", "actual", "prompt",
+]
+
+
+def _write_failures_csv(out_dir: Path, failures: list[dict[str, Any]]) -> None:
+    with (out_dir / "failures.csv").open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=FAILURE_CSV_FIELDS, extrasaction="ignore")
+        writer.writeheader()
+        for row in failures:
+            writer.writerow({k: row.get(k, "") for k in FAILURE_CSV_FIELDS})
+
+
 def _copy_artifacts(work: Path, out_dir: Path, report: dict[str, Any]) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     for name in ("tasks.json",):
@@ -376,6 +439,13 @@ def _copy_artifacts(work: Path, out_dir: Path, report: dict[str, Any]) -> None:
         src = work / "output" / name
         if src.exists():
             shutil.copy2(src, out_dir / name)
+
+    _write_failures_csv(out_dir, report["score"]["failures"])
+    # Keep benchmark.json failures slim; full expected/actual/prompt live in failures.csv.
+    slim = {"task_id", "category", "method", "answer", "error"}
+    report["score"]["failures"] = [
+        {k: v for k, v in row.items() if k in slim} for row in report["score"]["failures"]
+    ]
     (out_dir / "benchmark.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

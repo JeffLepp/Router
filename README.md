@@ -37,6 +37,59 @@ listed in `ALLOWED_MODELS`.
 The default submission mode is Floor-C: local candidate disabled and one remote
 call for every task the proof gate cannot solve.
 
+## Prototype 1 Baseline
+
+Prototype 1 is the current Floor-C router: deterministic proof solvers answer
+safe tasks for zero Fireworks tokens, and every unresolved task gets one compact
+Fireworks call. The local llama.cpp candidate tier is present but off by default
+so the container stays portable in a CPU-only grading environment.
+
+Latest trusted live run:
+`benchmark_runs/live-official-accessible-floor-c-full80-final`
+
+| Metric | Result |
+|---|---:|
+| Scored accuracy | 46/70 (65.71%) |
+| Unscored summarization tasks | 10 |
+| Fireworks requests | 42 |
+| Fireworks tokens | 7,719 |
+| Remote errors | 0 |
+| Wall time | 10.94s |
+| Docker smoke image size | 2.13 GB compressed |
+
+Interpretation: Prototype 1 is infrastructure-stable and token-light enough for
+iteration, but not yet accuracy-competitive. All scored failures in the trusted
+run came from the remote path, so later prototypes should compare against this
+baseline by improving remote answer shape and category routing before chasing
+more token cuts.
+
+## Change Tracking
+
+Log each live run's local score + what it proved. **Caveat:** the local scorer
+does exact/format matching and cannot run `unit_tests`/`schema_match` or make
+LLM judgements, so it *undercounts* code and terse-QA answers that pass under the
+real harness. Read the failures.csv, don't trust the raw %.
+
+| Run | Scope | Local acc | Gate | Remote | Tokens | Errors |
+|---|---|---:|---:|---:|---:|---:|
+| `live-official-...-full80-final` | full 70 | 65.71% | 38/38 | remote | 7,719 | 0 |
+| `live-fable5-shortcats` | 5 cats / 50 | 62.00% | 21/21 (100%) | 10/29 (34%) | 4,493 | 0 |
+
+`live-fable5-shortcats` (after classify/contracts fixes) — gate precision held
+at 100%, zero remote errors. Local 62% understates true accuracy: all 6 code
+"failures" are functionally-correct fixes the scorer can't execute, and qa_005/006
+are correct-but-terse. Real remote problems this run isolated (next targets):
+
+1. Sentiment aspect **key** mismatch — model emits right polarity, wrong aspect
+   keys (`battery life` vs `battery`). aspect_based tasks 004/005/006.
+2. Aspect JSON leaks into single-label `classification` sarcasm tasks (007/008),
+   which also missed the sarcasm → wrong label.
+3. Logic remote answers ramble/truncate instead of terse answer (005/008); the
+   answer-only instruction + 40-tok cap isn't binding minimax-m3.
+4. qa_010 "how many moons…" misroutes to math (`how many` hint) → math wrapper
+   instead of `unanswerable`.
+5. qa_007 unanswerable hatch fired on an answerable current-events question.
+
 ## Local Model Notes
 
 The baked llama.cpp server is CPU-only by default. Track 1 advertises a
