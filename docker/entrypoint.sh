@@ -17,8 +17,12 @@ PY
 
 if [ "$ENABLED" = "1" ]; then
   echo "entrypoint: Floor-CL, starting llama-server" >&2
+  GPU_ARGS=""
+  if [ "${LLAMA_N_GPU_LAYERS:-0}" != "0" ]; then
+    GPU_ARGS="--n-gpu-layers ${LLAMA_N_GPU_LAYERS}"
+  fi
   llama-server --model "$MODEL_GGUF" --host 127.0.0.1 --port "$LLAMA_PORT" \
-    --ctx-size 4096 --n-gpu-layers 999 --no-warmup >/tmp/llama.log 2>&1 &
+    --ctx-size 4096 $GPU_ARGS >/tmp/llama.log 2>&1 &
   # Wait for readiness (up to ~30s); the accept-gate defers to Fireworks if it
   # never comes up, so this only trims a startup race, never blocks the wall.
   i=0
