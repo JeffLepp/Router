@@ -8,7 +8,7 @@ accepts, and how many of those are correct (accepted precision must be 100%).
 
 Usage:
   python -m scripts.bench_local --models qwen=/models/qwen.gguf,llama=/models/llama.gguf
-  # defaults to the single baked model at $MODEL_GGUF if --models omitted.
+  # defaults to CPU-only, 512 ctx, two threads, and the baked $MODEL_GGUF.
 
 Scoring reuses eval/score.py when present (P3); otherwise a minimal comparator.
 """
@@ -90,14 +90,33 @@ def _tok_per_s(port: int, model: str) -> float:
     return toks / dt if dt > 0 else 0.0
 
 
-async def _bench_model(name: str, gguf: str, tasks: list[dict]) -> dict:
+async def _bench_model(
+    name: str,
+    gguf: str,
+    tasks: list[dict],
+    *,
+    ctx_size: int,
+    threads: int,
+    startup_timeout: float,
+    n_gpu_layers: int,
+) -> dict:
     port = _free_port()
-    proc = subprocess.Popen(
-        ["llama-server", "--model", gguf, "--host", "127.0.0.1", "--port", str(port),
-         "--ctx-size", "4096", "--n-gpu-layers", "999", "--no-warmup"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    cmd = [
+        "llama-server",
+        "--model", gguf,
+        "--host", "127.0.0.1",
+        "--port", str(port),
+        "--ctx-size", str(ctx_size),
+        "--threads", str(threads),
+    ]
+    if n_gpu_layers:
+        cmd += ["--n-gpu-layers", str(n_gpu_layers)]
     try:
-        cold = _wait_health(port)
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        return {"model": name, "error": "llama-server not found on PATH"}
+    try:
+        cold = _wait_health(port, timeout=startup_timeout)
         if cold < 0:
             return {"model": name, "error": "llama-server never healthy"}
         tps = _tok_per_s(port, "local")
@@ -152,6 +171,20 @@ async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", help="name=path,name=path (default: $MODEL_GGUF)")
     ap.add_argument("--dataset", default=str(ROOT / "dataset.json"))
+    ap.add_argument("--ctx-size", type=int, default=int(os.environ.get("LLAMA_CTX_SIZE", "512")))
+    ap.add_argument("--threads", type=int, default=int(os.environ.get("LLAMA_THREADS", "2")))
+    ap.add_argument(
+        "--startup-timeout",
+        type=float,
+        default=float(os.environ.get("LLAMA_STARTUP_WAIT_S", "60")),
+        help="seconds to wait for llama-server /health",
+    )
+    ap.add_argument(
+        "--n-gpu-layers",
+        type=int,
+        default=int(os.environ.get("LLAMA_N_GPU_LAYERS", "0")),
+        help="optional GPU offload; default 0 keeps the bench CPU-only",
+    )
     args = ap.parse_args()
 
     tasks = json.loads(Path(args.dataset).read_text(encoding="utf-8"))
@@ -161,7 +194,15 @@ async def main() -> int:
             rows.append({"model": name, "error": f"missing {gguf}"})
             continue
         print(f"== benchmarking {name} ({gguf}) ==", file=sys.stderr)
-        rows.append(await _bench_model(name, gguf, tasks))
+        rows.append(await _bench_model(
+            name,
+            gguf,
+            tasks,
+            ctx_size=args.ctx_size,
+            threads=args.threads,
+            startup_timeout=args.startup_timeout,
+            n_gpu_layers=args.n_gpu_layers,
+        ))
 
     print("\n| model | cold s | tok/s | eligible | accepted | correct | precision % |")
     print("|-------|-------:|------:|---------:|---------:|--------:|------------:|")

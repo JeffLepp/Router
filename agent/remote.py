@@ -202,6 +202,7 @@ class RemoteClient:
             ],
             "temperature": self.temperature,
             "max_tokens": call.max_tokens,
+            "reasoning_effort": "none",
             "stop": ["\n\n\n"],
         }
         headers = {"Content-Type": "application/json"}
@@ -216,7 +217,7 @@ class RemoteClient:
                     _post_json(_completion_url(self.base_url), payload, headers, remaining),
                     timeout=remaining,
                 )
-                content = str(data["choices"][0]["message"]["content"]).strip()
+                content = _message_content(data).strip()
                 usage = dict(data.get("usage", {}) or {})
                 self.ledger.add(call.task_id, model, usage, call.estimated_tokens)
                 return content
@@ -226,6 +227,14 @@ class RemoteClient:
                     break
                 await asyncio.sleep(min(0.25 * (2**attempt), 1.0))
         raise RuntimeError(f"remote call failed: {last_error}")
+
+
+def _message_content(data: dict[str, Any]) -> str:
+    message = dict(data["choices"][0].get("message") or {})
+    content = message.get("content")
+    if content is None:
+        content = message.get("reasoning_content", "")
+    return str(content or "")
 
 
 def _completion_url(base_url: str) -> str:

@@ -37,6 +37,19 @@ listed in `ALLOWED_MODELS`.
 The default submission mode is Floor-C: local candidate disabled and one remote
 call for every task the proof gate cannot solve.
 
+## Local Model Notes
+
+The baked llama.cpp server is CPU-only by default. Track 1 advertises a
+2 vCPU / 4GB RAM grading target and does not promise a compatible Vulkan/CUDA
+driver, so a GPU-required image can fail before the router starts. CPU mode is
+slower, but it keeps the default Floor-C path portable.
+
+Floor-CL remains optional. The entrypoint only starts llama-server when
+`local_candidate.enabled` is true and at least one local category is enabled.
+For fast container smoke tests, set `AGENT_FORCE_STUB=1`; for real local
+benchmarking, use `scripts/bench_local.py` and override `LLAMA_CTX_SIZE`,
+`LLAMA_THREADS`, `LLAMA_STARTUP_WAIT_S`, or `LLAMA_N_GPU_LAYERS` as needed.
+
 ## Local Verification
 
 ```bash

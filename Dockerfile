@@ -43,6 +43,9 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 ENV MODEL_GGUF=/models/model.gguf \
     LD_LIBRARY_PATH=/usr/local/lib \
     LLAMA_PORT=8080 \
+    LLAMA_CTX_SIZE=512 \
+    LLAMA_THREADS=2 \
+    LLAMA_STARTUP_WAIT_S=10 \
     INPUT_PATH=/input/tasks.json \
     OUTPUT_PATH=/output/results.json \
     PYTHONUNBUFFERED=1

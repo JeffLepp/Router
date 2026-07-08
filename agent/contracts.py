@@ -36,6 +36,8 @@ class Contract:
         if self.category == "math_reasoning":
             return f"The final answer is {payload}."
         if self.category == "sentiment_analysis":
+            if payload.startswith("{") or payload.startswith("["):
+                return payload
             return f"Sentiment: {payload}."
         if self.category == "named_entity_recognition":
             return f"Named entities:\n{payload}"
@@ -106,7 +108,7 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
         "actual_qa": Contract(
             "actual_qa",
             caps["actual_qa"],
-            "Return terse key-fact bullets only. No preamble.",
+            "Return the exact answer only. No bullets, markdown, preamble, or explanation. If the question has a false premise or is unknowable, return exactly: unanswerable.",
         ),
         "math_reasoning": Contract(
             "math_reasoning",
@@ -116,7 +118,7 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
         "sentiment_analysis": Contract(
             "sentiment_analysis",
             caps["sentiment_analysis"],
-            "Return exactly one label: positive, negative, neutral, or mixed.",
+            'Return exactly one label: positive, negative, neutral, or mixed. If the prompt asks about contrasting aspects, return compact JSON: {"sentiment":"mixed","aspects":{"aspect":"positive_or_negative"}}.',
         ),
         "summarization": Contract(
             "summarization",
