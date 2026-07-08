@@ -40,7 +40,7 @@ _CODE_HINTS = re.compile(
 _MATH_HINTS = re.compile(
     r"\b(calculate|compute|solve|percent|percentage|probability|rate|total|sum|"
     r"difference|product|ratio|projection|interest|average|square|divided|how many|"
-    r"how much)\b|[-+*/=]\s*\d|[×÷]",
+    r"how much|quadratic|triangle|area)\b|[-+*/=]\s*\d|[\u00d7\u00f7]",
     re.I,
 )
 _SUMMARY_HINTS = re.compile(
@@ -50,7 +50,7 @@ _SUMMARY_HINTS = re.compile(
 )
 _SENTIMENT_HINTS = re.compile(
     r"\b(sentiment|positive|negative|neutral|classify.*review|label.*tone|"
-    r"loved|terrible|waste of time|exceeded|disappoints)\b",
+    r"loved|love|terrible|waste of time|exceeded|disappoints)\b",
     re.I,
 )
 _NER_HINTS = re.compile(
@@ -60,7 +60,9 @@ _NER_HINTS = re.compile(
 )
 _LOGIC_HINTS = re.compile(
     r"\b(logic|deduce|deductive|constraint|puzzle|arrangement|who owns|which person|"
-    r"truthful|liar|all conditions|sits|seat|houses|boxes|statements)\b",
+    r"truthful|liar|all conditions|sits|seat|houses|boxes|statements|can you conclude|"
+    r"consistent at the same time|all [a-z]+ are|some [a-z]+|older than|"
+    r"what day will it be)\b",
     re.I,
 )
 _CODE_GEN_HINTS = re.compile(
@@ -99,3 +101,4 @@ async def classify(prompt: str, local_tiebreaker: object | None = None) -> Class
 
     # P1 keeps the optional local tiebreak hook physically off; low confidence routes general.
     return Classification("actual_qa", 0.55, "default factual")
+

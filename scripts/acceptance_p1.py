@@ -244,8 +244,10 @@ def test_zero_remote_and_mandatory() -> None:
 
             config2 = tmp / "mandatory.yaml"
             write_config(config2, token_budget=0, mandatory_remote=1)
+            before = metrics(port)["requests"]
             run_agent(tmp, fake_tasks(12), config2, f"http://127.0.0.1:{port}")
-            assert metrics(port)["requests"] == 12
+            routed = metrics(port)["requests"] - before
+            assert 0 < routed < 12, f"expected real gate to reduce remote calls, got {routed}"
         finally:
             server.kill()
 
@@ -284,6 +286,13 @@ def test_verifiers() -> None:
         "agent.contracts",
         "agent.batcher",
         "agent.remote",
+        "agent.solvers.arithmetic",
+        "agent.solvers.wordmath",
+        "agent.solvers.logic_solve",
+        "agent.solvers.ner_solve",
+        "agent.solvers.sentiment_solve",
+        "agent.solvers.format_solve",
+        "agent.solvers.code_solve",
     ]
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
