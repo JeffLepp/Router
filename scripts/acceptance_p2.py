@@ -54,6 +54,23 @@ def test_gate_precision_recall() -> None:
     for category in sorted(totals):
         recall = answered[category] / totals[category]
         print(f"GATE_RECALL {category} {answered[category]}/{totals[category]} {recall:.1%}")
+    _assert_holdout_precision()
+
+
+def _assert_holdout_precision() -> None:
+    """Precision must hold on the ADVERSARIAL holdout too, or the 100% above is a comforting lie.
+    Scored with the canonical eval.score, same as eval/gate_report.py --holdout."""
+    from eval.devset import load_devset
+    from eval.score import score_task
+
+    holdout = [task for task in load_devset(include_holdout=True) if task.get("holdout")]
+    wrong = []
+    for task in holdout:
+        answer = gate_solve(task["category"], task["prompt"])
+        if answer is not None and not score_task(task, answer):
+            wrong.append((task["id"], task["category"], answer))
+    assert not wrong, "wrong proven answers on holdout: " + repr(wrong[:5])
+    print(f"GATE_PRECISION_HOLDOUT 100.00% wrong=0 n_holdout={len(holdout)}")
 
 
 def evaluate_item(item: dict[str, Any], answer: str) -> bool:

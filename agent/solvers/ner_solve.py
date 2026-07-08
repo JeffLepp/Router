@@ -20,6 +20,15 @@ EVENT_PATTERNS = [r"\b\d{4}\s+Summer Olympics\b"]
 MONTHS = (
     "January|February|March|April|May|June|July|August|September|October|November|December"
 )
+# Title-case bigrams beginning with these are place names ("San Carlos", "New York"), not people.
+LOCATION_PREFIXES = {
+    "San", "Los", "Las", "New", "Fort", "Lake", "Mount", "Saint", "Santa", "El", "Cape", "Port",
+}
+# Capitalized words that are not entities, so an uncovered one shouldn't force a defer.
+NON_ENTITY_CAPS = {
+    "British", "American", "French", "German", "Chinese", "Japanese", "European", "Canadian",
+    "Client", "The", "There", "This", "That", "Something", "Somewhere",
+} | set(MONTHS.split("|"))
 
 
 def solve(prompt: str) -> str | None:
@@ -34,6 +43,7 @@ def solve(prompt: str) -> str | None:
     requested = _requested_types(lower)
     if not requested:
         return None
+    generic = "named entities" in lower or "extract entities" in lower or "identify entities" in lower
 
     candidates: list[tuple[int, int, dict[str, str]]] = []
     person_spans: list[tuple[int, int]] = []
@@ -92,8 +102,27 @@ def solve(prompt: str) -> str | None:
         return payload if valid_entities_shape(payload) else None
     if not entities:
         return None
+    # ponytail: a 7-org/4-location gazetteer can't safely do open-world "extract ALL named entities".
+    # If a generic request leaves any capitalized proper noun uncovered, defer. Ceiling: scoped-type
+    # requests with out-of-gazetteer entities still risk a miss -> grow the gazetteer or add a real
+    # NER model if the hidden set needs it.
+    if generic and _has_uncovered_proper_noun(source, entities):
+        return None
     payload = compact_json({"entities": entities})
     return payload if valid_entities_shape(payload) else None
+
+
+def _has_uncovered_proper_noun(source: str, entities: list[dict[str, str]]) -> bool:
+    covered = {token for entity in entities for token in entity["text"].split()}
+    for match in re.finditer(r"\b([A-Z][a-z]{2,})\b", source):
+        token = match.group(1)
+        if token in covered or token in NON_ENTITY_CAPS:
+            continue
+        prev = source[: match.start()].rstrip()
+        if not prev or prev[-1] in ".!?\"'":
+            continue  # sentence-initial: can't tell a proper noun from a capitalized first word
+        return True
+    return False
 
 
 def _requested_types(lower: str) -> set[str]:
@@ -130,6 +159,8 @@ def _looks_like_person(value: str) -> bool:
         return False
     if value in ORG_NAMES or value in LOCATION_NAMES:
         return False
+    if parts[0] in LOCATION_PREFIXES:
+        return False  # place name, not a person
     blocked = ORG_NAMES | LOCATION_NAMES | {
         "Summer",
         "Olympics",
@@ -170,6 +201,10 @@ def _self_check() -> None:
     assert solve("Identify persons and dates: 'There are no names or dates in this sentence.'") == compact_json({"entities": []})
     assert solve("Identify entities: 'The word Amazon can refer to a rainforest or a company.'") is None
     assert solve("Extract important things: 'Something happened somewhere.'") is None
+    # open-world generic requests with out-of-gazetteer proper nouns must defer, not emit a partial set
+    assert solve("Extract named entities: Barack Obama was born in Hawaii.") is None
+    assert solve("Extract named entities: Tesla was founded by Elon Musk in San Carlos.") is None
+    assert solve("Extract named entities: Marie Curie worked in Paris.") == compact_json({"entities": [{"text": "Marie Curie", "type": "PERSON"}, {"text": "Paris", "type": "LOCATION"}]})
 
 
 if __name__ == "__main__":

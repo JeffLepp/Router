@@ -47,7 +47,8 @@ def _syllogism(text: str, lower: str) -> str | None:
     subject, parent, _, instance_type, queried = (part.lower() for part in match.groups())
     if instance_type.rstrip("s") == subject.rstrip("s") and queried.rstrip("s") == parent.rstrip("s"):
         return _answer("Yes")
-    return _answer("No")
+    # Different type/predicate: the premises say nothing -> undetermined, not "No". Defer.
+    return None
 
 
 def _day_offset(text: str, lower: str) -> str | None:
@@ -207,6 +208,7 @@ def _box_puzzle(text: str, lower: str) -> str | None:
 
 def _self_check() -> None:
     assert solve("All cats are animals. Milo is a cat. Is Milo an animal?") == _answer("Yes")
+    assert solve("All cats are animals. Milo is a dog. Is Milo an animal?") is None
     assert solve("If today is Tuesday, what day will it be in three days?") == _answer("Friday")
     assert solve("If all roses are flowers and some flowers fade quickly, can you conclude that some roses fade quickly?") == _answer("No, it does not necessarily follow.")
     assert solve("Consider three statements about ages: A is older than B; B is older than C; C is older than A. Are these statements all consistent at the same time?") == _answer("No", False)

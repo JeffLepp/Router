@@ -66,15 +66,30 @@ def _rectangle_area(text: str) -> str | None:
     return format_decimal(parse_number(length.group(1)) * parse_number(width.group(1)))
 
 
+_ORIGINAL_CUE = re.compile(r"\b(originally|original|before)\b", re.I)
+
+
 def _reverse_percent(text: str) -> str | None:
     lower = text.lower()
+    if not _ORIGINAL_CUE.search(lower):
+        return None
+    # "$X after a Y% discount/increase" -> price then pct (the common phrasing)
     match = re.search(
-        rf"after\s+(?:a\s+)?({_NUM})\s*(?:%|percent)\s+(discount|increase).*?(?:is|was)\s+\$?({_NUM}).*?(?:original|before)",
+        rf"\$?({_NUM})\s+after\s+(?:a\s+)?({_NUM})\s*(?:%|percent)\s+(discount|increase)",
         lower,
     )
-    if not match:
-        return None
-    pct_raw, direction, final_raw = match.groups()
+    if match:
+        final_raw, pct_raw, direction = match.groups()
+    else:
+        # legacy: "after a Y% discount ... is/was $X ... original"
+        legacy = re.search(
+            rf"after\s+(?:a\s+)?({_NUM})\s*(?:%|percent)\s+(discount|increase).*?(?:is|was)\s+\$?({_NUM})",
+            lower,
+            flags=re.S,
+        )
+        if not legacy:
+            return None
+        pct_raw, direction, final_raw = legacy.groups()
     pct = parse_number(pct_raw) / Decimal(100)
     final = parse_number(final_raw)
     divisor = Decimal(1) - pct if direction == "discount" else Decimal(1) + pct
@@ -85,6 +100,8 @@ def _reverse_percent(text: str) -> str | None:
 
 def _discount_price(text: str) -> str | None:
     lower = text.lower()
+    if _ORIGINAL_CUE.search(lower):
+        return None  # asks for the pre-discount price -> _reverse_percent territory, never compute forward
     match = re.search(
         rf"\$?({_NUM}).*?({_NUM})\s*(?:%|percent)\s+discount",
         lower,
@@ -133,6 +150,8 @@ def _self_check() -> None:
     assert solve("Jane bought 3 books at $12 each and two magazines at $5 each. How much did she spend in total?") == "46"
     assert solve("If a rectangle has a length of 8 cm and a width of 5 cm, what is its area?") == "40"
     assert solve("A $100 jacket has a 20% discount. What is the sale price?") == "80"
+    assert solve("Calculate the original price: a jacket costs $150 after a 25% discount.") == "200"
+    assert solve("A shirt is $80 after a 20% discount. How much was the original price?") == "100"
     assert solve("Convert 2 kilometers to meters.") == "2000"
     assert solve("A shop sells a bundle with unknown taxes. What is the total?") is None
 
