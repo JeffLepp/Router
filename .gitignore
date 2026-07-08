@@ -1,5 +1,7 @@
 *.md
 !README.md
+!AGENTS.md
+!FABLE5_TODO.md
 .env
 .env.*
 __pycache__/
