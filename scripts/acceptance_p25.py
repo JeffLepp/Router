@@ -114,6 +114,13 @@ def test_accept_reject_set() -> None:
             False,
         ),
         (
+            "ner reject wrong type",
+            "named_entity_recognition",
+            "Extract entities: Ada Lovelace joined AMD in Seattle.",
+            ['{"entities":[{"text":"Seattle","type":"PERSON"}]}'],
+            False,
+        ),
+        (
             "sentiment accept lexicon",
             "sentiment_analysis",
             "Classify sentiment: I love this excellent result.",
@@ -125,6 +132,13 @@ def test_accept_reject_set() -> None:
             "sentiment_analysis",
             "Classify sentiment: I love this excellent result.",
             ["negative", "negative"],
+            False,
+        ),
+        (
+            "sentiment reject lexicon-overrides-disagreement",
+            "sentiment_analysis",
+            "Classify sentiment: I love this excellent result.",
+            ["positive", "negative"],
             False,
         ),
         (
