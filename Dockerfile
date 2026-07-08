@@ -8,7 +8,7 @@ FROM debian:bookworm-slim AS build
 ARG LLAMA_REF=b4000
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git cmake build-essential libcurl4-openssl-dev \
-      libvulkan-dev glslang-tools ca-certificates \
+      libvulkan-dev glslang-tools glslc ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 --branch ${LLAMA_REF} https://github.com/ggml-org/llama.cpp /src \
     || git clone --depth 1 https://github.com/ggml-org/llama.cpp /src

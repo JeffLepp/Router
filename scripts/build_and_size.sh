@@ -11,6 +11,14 @@ PLATFORM="linux/amd64"
 MAX_BYTES=$((10 * 1000 * 1000 * 1000))   # 10 GB compressed
 LOCAL_REG=""
 
+docker_host_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 cleanup() { [ -n "$LOCAL_REG" ] && docker rm -f "$LOCAL_REG" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
@@ -21,7 +29,8 @@ docker build --platform "$PLATFORM" -t "$IMAGE" "$ROOT"
 # 2. compressed size gate
 echo "== compressed size =="
 BYTES=$(docker save "$IMAGE" | gzip -c | wc -c)
-printf 'compressed=%s bytes (%.2f GB)\n' "$BYTES" "$(echo "scale=2;$BYTES/1000000000"|bc)"
+GB="$(awk -v bytes="$BYTES" 'BEGIN { printf "%.2f", bytes / 1000000000 }')"
+printf 'compressed=%s bytes (%s GB)\n' "$BYTES" "$GB"
 [ "$BYTES" -lt "$MAX_BYTES" ] || { echo "FAIL: image >= 10GB compressed"; exit 1; }
 
 # 3. push + 4. pull (spin a local registry if IMAGE points at localhost:5000)
@@ -60,15 +69,28 @@ JSON
     inlc && /^  enabled:/ {print "  enabled: " en; next}
     {print}
   ' "$ROOT/agent/config.yaml" > "$work/config.yaml"
+  local input_mount output_mount config_mount
+  input_mount="$(docker_host_path "$work/input")"
+  output_mount="$(docker_host_path "$work/output")"
+  config_mount="$(docker_host_path "$work/config.yaml")"
   echo "== smoke: $mode (enabled=$enabled) =="
-  docker run --rm --platform "$PLATFORM" \
+  MSYS_NO_PATHCONV=1 docker run --rm --platform "$PLATFORM" \
     -e CONFIG_PATH=/cfg/config.yaml \
     ${SMOKE_FORCE_STUB:+-e AGENT_FORCE_STUB=1} \
-    -v "$work/input:/input:ro" -v "$work/output:/output" \
-    -v "$work/config.yaml:/cfg/config.yaml:ro" \
+    -v "$input_mount:/input:ro" -v "$output_mount:/output" \
+    -v "$config_mount:/cfg/config.yaml:ro" \
     "$IMAGE"
-  python3 -c "import json,sys; d=json.load(open('$work/output/results.json')); \
-    ids={x['task_id'] for x in d}; assert ids=={'t1','t2'}, ids; print('  valid results.json', ids)"
+  local results_path
+  results_path="$(docker_host_path "$work/output/results.json")"
+  python3 - "$results_path" <<'PY'
+import json
+import sys
+
+d = json.load(open(sys.argv[1]))
+ids = {x["task_id"] for x in d}
+assert ids == {"t1", "t2"}, ids
+print("  valid results.json", ids)
+PY
   rm -rf "$work"
 }
 smoke "Floor-C"  0
