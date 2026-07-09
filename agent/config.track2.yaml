@@ -1,0 +1,53 @@
+# Track 2 profile: local-first routing on the 2 vCPU / 4GB CPU-only grader.
+# Pair with a 1.5B Q4 GGUF (see README "Track 2"): the 3B is RAM-safe but too
+# slow to clear the latency cap on 2 vCPUs; a 1.5B roughly halves latency.
+# Select at runtime with CONFIG_PATH=/app/agent/config.track2.yaml.
+token_budget: 0
+mandatory_remote: 1
+local_slots: 4
+remote_slots: 8
+wall_seconds: 510
+snapshot_interval_seconds: 5
+model_paths:
+  main: ""
+  draft: ""
+llama:
+  base_url: "http://127.0.0.1:8080/v1"
+  model: "local"
+local_candidate:
+  enabled: true
+  # ponytail: k=1 — self-consistency doubles latency and 2 vCPUs can't pay it;
+  # raise if a faster grader shows up.
+  self_consistency_k: 1
+  temp: 0
+  max_tokens: 48
+  latency_cap_s: 10
+  # Short-output categories with accept-gates only; summarization and
+  # code_generation stay remote (long outputs, no reliable local gate).
+  categories:
+    actual_qa: true
+    math_reasoning: true
+    sentiment_analysis: true
+    summarization: false
+    named_entity_recognition: true
+    code_debugging: true
+    logic_puzzles: true
+    code_generation: false
+batching:
+  enabled: false
+  max_batch_size: 10
+remote:
+  timeout_seconds: 25
+  retries: 2
+  temperature: 0
+  usd_per_mtok: 0.9
+  dev_spend_cap: 0.0
+max_tokens:
+  actual_qa: 40
+  math_reasoning: 10
+  sentiment_analysis: 80
+  summarization: 80
+  named_entity_recognition: 60
+  code_debugging: 300
+  logic_puzzles: 40
+  code_generation: 300
