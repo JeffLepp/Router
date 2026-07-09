@@ -124,6 +124,34 @@ The entrypoint only starts llama-server when `local_candidate.enabled` is true i
 - `LLAMA_CTX_SIZE`, `LLAMA_THREADS`, `LLAMA_STARTUP_WAIT_S`, `LLAMA_N_GPU_LAYERS`
   — tune startup/perf per environment.
 
+## Track 2 (local models allowed)
+
+Track 2 permits local inference with no Fireworks-only restriction, but the
+grading box is the same 2 vCPU / 4GB with no model runtime pre-installed — so
+weights ship inside the image (they already do; `MODEL_GGUF_URL` is a build
+arg). The 3B Q4 fits RAM (~2GB) but generates ~3 tok/s on 2 vCPUs and can't
+clear the latency cap; a **1.5B Q4 (~1GB)** roughly halves latency and leaves
+~3GB for llama.cpp KV cache + agent code. Build and run the Track 2 image:
+
+```bash
+docker build \
+  --build-arg MODEL_GGUF_URL=https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+  -t router:track2 .
+
+docker run --rm \
+  -v "$PWD/sample_input:/input:ro" -v "$PWD/out:/output" \
+  -e CONFIG_PATH=/app/agent/config.track2.yaml \
+  -e LLAMA_CTX_SIZE=1024 -e LLAMA_STARTUP_WAIT_S=30 \
+  -e FIREWORKS_API_KEY -e FIREWORKS_BASE_URL -e ALLOWED_MODELS \
+  router:track2
+```
+
+`agent/config.track2.yaml` enables the local tier for the short-output gated
+categories (k=1, 10s latency cap); summarization and code generation still go
+remote. Everything the local gate rejects falls through to Fireworks as usual.
+Before trusting it on the grader, verify latency in-container with
+`--cpus=2 --memory=4g` and `scripts/bench_local.py`.
+
 ## Before you submit
 
 - [ ] Image builds for `linux/amd64` and passes `scripts/build_and_size.sh`

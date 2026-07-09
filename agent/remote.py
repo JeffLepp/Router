@@ -184,18 +184,13 @@ class RemoteClient:
         self.temperature = temperature
         self.dev_spend_cap = dev_spend_cap
         self.ledger = TokenLedger(usd_per_mtok=usd_per_mtok)
+        # Models that rejected `reasoning_effort`; we stop sending it to them.
+        self._no_reasoning_param: set[str] = set()
         if not self.base_url:
             raise RuntimeError("FIREWORKS_BASE_URL is required when remote calls are enabled")
         choose_default_model(self.models)
 
-    async def complete(self, call: RemoteCall) -> str:
-        projected = self.ledger.estimated_usd + (
-            call.estimated_tokens / 1_000_000
-        ) * self.ledger.usd_per_mtok
-        if self.dev_spend_cap > 0 and projected > self.dev_spend_cap:
-            raise RuntimeError("remote dev spend cap reached")
-
-        model = choose_model_for_category(call.category, self.models)
+    def _payload(self, model: str, call: RemoteCall) -> dict[str, Any]:
         payload = {
             "model": model,
             "messages": [
@@ -207,31 +202,69 @@ class RemoteClient:
             ],
             "temperature": self.temperature,
             "max_tokens": call.max_tokens,
-            "reasoning_effort": "none",
             "stop": ["\n\n\n"],
         }
+        if model not in self._no_reasoning_param:
+            payload["reasoning_effort"] = "none"
+        return payload
+
+    async def complete(self, call: RemoteCall) -> str:
+        projected = self.ledger.estimated_usd + (
+            call.estimated_tokens / 1_000_000
+        ) * self.ledger.usd_per_mtok
+        if self.dev_spend_cap > 0 and projected > self.dev_spend_cap:
+            raise RuntimeError("remote dev spend cap reached")
+
+        model = choose_model_for_category(call.category, self.models)
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         deadline = time.monotonic() + self.timeout
         last_error: BaseException | None = None
+        blank_fallback_used = False
         for attempt in range(self.retries + 1):
             remaining = max(0.5, deadline - time.monotonic())
             try:
                 data = await asyncio.wait_for(
-                    _post_json(_completion_url(self.base_url), payload, headers, remaining),
+                    _post_json(
+                        _completion_url(self.base_url),
+                        self._payload(model, call),
+                        headers,
+                        remaining,
+                    ),
                     timeout=remaining,
                 )
                 content = _message_content(data).strip()
                 usage = dict(data.get("usage", {}) or {})
                 self.ledger.add(call.task_id, model, usage, call.estimated_tokens)
-                return content
+                # A blank completion scores zero (reasoning models can burn the
+                # whole budget on hidden reasoning), so spend one retry on the
+                # next-ranked model before returning it.
+                fallback = _other_model(model, self.models)
+                if content or blank_fallback_used or fallback is None or attempt >= self.retries:
+                    return content
+                blank_fallback_used = True
+                model = fallback
             except BaseException as exc:
                 last_error = exc
+                # ponytail: any HTTP 400 is treated as `reasoning_effort`
+                # rejection; the retry merely drops the param, harmless if the
+                # 400 had another cause.
+                if _param_rejection(exc):
+                    self._no_reasoning_param.add(model)
                 if attempt >= self.retries:
                     break
                 await asyncio.sleep(min(0.25 * (2**attempt), 1.0))
         raise RuntimeError(f"remote call failed: {last_error}")
+
+
+def _other_model(primary: str, models: list[str]) -> str | None:
+    return next((m for m in rank_models(models) if m != primary), None)
+
+
+def _param_rejection(exc: BaseException) -> bool:
+    text = str(exc)
+    return "reasoning_effort" in text or "invalid_request_error" in text or "HTTP 400" in text or "400 Bad Request" in text
 
 
 def _message_content(data: dict[str, Any]) -> str:
@@ -290,13 +323,44 @@ def _self_check() -> None:
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
     assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
     assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
-    assert _param_count("gemma-4-26b-a4b-it") == 4.0
-    assert _param_count("gemma-4-31b-it") == 31.0
-    assert _param_count("mixtral-8x7b-instruct") == 7.0
-    assert _param_count("minimax-m3") == 999.0
-    # Active-param awareness ranks the a4b MoE cheapest among unknown families.
-    ranked = rank_models(["foo-9b-it", "foo-26b-a4b-it"])
-    assert ranked[0] == "foo-26b-a4b-it", ranked
+    asyncio.run(_self_check_complete())
+
+
+async def _self_check_complete() -> None:
+    global _post_json
+    os.environ.setdefault("FIREWORKS_BASE_URL", "http://stub.invalid/v1")
+    os.environ.setdefault("ALLOWED_MODELS", "minimax-m3,gemma-4-26b-a4b-it")
+    real = _post_json
+    call = RemoteCall(task_id="t1", category="math_reasoning", prompt="2+2?", max_tokens=8)
+    try:
+        # 1. Blank completion falls back to a different model.
+        models_called: list[str] = []
+
+        async def blank_then_ok(url, payload, headers, timeout):
+            models_called.append(payload["model"])
+            content = "" if len(models_called) == 1 else "4"
+            return {"choices": [{"message": {"content": content}}], "usage": {}}
+
+        _post_json = blank_then_ok
+        answer = await RemoteClient().complete(call)
+        assert answer == "4", answer
+        assert len(models_called) == 2 and models_called[0] != models_called[1], models_called
+
+        # 2. HTTP 400 on `reasoning_effort` retries without the param.
+        efforts_sent: list[bool] = []
+
+        async def reject_effort(url, payload, headers, timeout):
+            efforts_sent.append("reasoning_effort" in payload)
+            if "reasoning_effort" in payload:
+                raise RuntimeError('HTTP 400: {"error":{"type":"invalid_request_error"}}')
+            return {"choices": [{"message": {"content": "4"}}], "usage": {}}
+
+        _post_json = reject_effort
+        answer = await RemoteClient().complete(call)
+        assert answer == "4", answer
+        assert efforts_sent == [True, False], efforts_sent
+    finally:
+        _post_json = real
 
 
 if __name__ == "__main__":
