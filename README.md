@@ -24,12 +24,13 @@ Each task flows through tiers, stopping at the first that can answer:
 
 1. **Classify** — regex cascade sorts the prompt into one of 8 categories.
 2. **Deterministic gate** — proof solvers answer safe tasks for **zero tokens**.
-3. **Local 14B candidate** *(Floor-CL, on by default)* — Qwen3-14B via llama.cpp, GPU-offloaded when a GPU is present, verified by the local gate.
+3. **Local 3B candidate** *(Floor-CL, off by default)* — Qwen2.5-3B via llama.cpp on CPU, accepted only when the local gate verifies the answer in time.
 4. **Fireworks fallback** — one compact remote call for whatever's left.
 
-Default mode is now **Floor-CL**: tier 3 answers verified categories for zero
-tokens. With no GPU device the server runs on CPU and the local gate's latency
-cap defers everything to Fireworks, so a CPU-only grader still passes. See the
+Default mode is **Floor-C**: tier 3 disabled. In-container testing at the
+grader's confirmed 2 vCPU / 4GB (no GPU) showed the 3B cannot finish inside
+the local gate's latency cap, so the tier would defer every task anyway.
+Flip `local_candidate.enabled` to run Floor-CL on faster hardware. See the
 architecture doc for the full diagram and module map.
 
 ### Input / output contract
@@ -113,11 +114,11 @@ python -m scripts.live_benchmark --container-image localhost:5000/floor-cl:test 
 
 ## Working on the local model (Floor-CL)
 
-The baked llama.cpp server is built with the **Vulkan backend** and bakes
-**Qwen3-14B Q4_K_M** (9.0GB) — the hackathon instance has ~48GB of VRAM, so the
-whole model plus KV cache fits on-GPU. The entrypoint autodetects a GPU
-(`/dev/dri/renderD*`) and offloads all layers; with no GPU it runs CPU-only and
-the local gate simply defers to Fireworks, so GPU is never required.
+The baked llama.cpp server is **CPU-only** — the confirmed grading environment
+is 2 vCPU / 4GB RAM with no GPU, so the image bakes Qwen2.5-3B Q4 (~2GB): a
+model that leaves RAM for the KV cache and the agent itself. (The 48GB-VRAM
+GPU exists only on the dev instance; the entrypoint's `/dev/dri` autodetect
+uses it there via `LLAMA_N_GPU_LAYERS`, but grading never depends on it.)
 
 The entrypoint only starts llama-server when `local_candidate.enabled` is true in
 `agent/config.yaml` *and* at least one local category is enabled. Useful knobs:
@@ -130,7 +131,7 @@ The entrypoint only starts llama-server when `local_candidate.enabled` is true i
 ## Before you submit
 
 - [ ] Image builds for `linux/amd64` and passes `scripts/build_and_size.sh`
-      (compressed size under 10GB — ~9.4GB with the 14B GGUF baked in).
+      (compressed size well under 10GB — ~2.1GB with the 3B GGUF).
 - [ ] Container writes `/output/results.json` and exits 0.
 - [ ] No keys, base URLs, `.env`, or model IDs baked into the image.
 - [ ] **Push the image to a public, pullable registry** (the local `localhost:5000`

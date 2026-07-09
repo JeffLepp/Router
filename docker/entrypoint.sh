@@ -44,14 +44,12 @@ elif [ "$START_LLAMA" = "1" ]; then
   if [ "${LLAMA_N_GPU_LAYERS}" != "0" ]; then
     GPU_ARGS="--n-gpu-layers ${LLAMA_N_GPU_LAYERS}"
   fi
-  CTX_SIZE="${LLAMA_CTX_SIZE:-4096}"
+  CTX_SIZE="${LLAMA_CTX_SIZE:-2048}"
   THREADS="${LLAMA_THREADS:-2}"
-  PARALLEL="${LLAMA_PARALLEL:-4}"
-  # --reasoning-budget 0: Qwen3 is a hybrid-thinking model; the local tier
-  # wants terse 64-token answers, not chain-of-thought.
+  PARALLEL="${LLAMA_PARALLEL:-2}"
   llama-server --model "$MODEL_GGUF" --host 127.0.0.1 --port "$LLAMA_PORT" \
     --ctx-size "$CTX_SIZE" --threads "$THREADS" --parallel "$PARALLEL" \
-    --reasoning-budget 0 $GPU_ARGS >/tmp/llama.log 2>&1 &
+    $GPU_ARGS >/tmp/llama.log 2>&1 &
   LLAMA_PID="$!"
   # Wait briefly; the accept-gate defers to Fireworks if llama is still warming.
   i=0

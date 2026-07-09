@@ -10,8 +10,11 @@ model_paths:
 llama:
   base_url: "http://127.0.0.1:8080/v1"
   model: "local"
+# enabled: one-line flip to Floor-CL. Left off for grading: on the confirmed
+# 2 vCPU / 4GB CPU-only grader the 3B can't clear latency_cap_s, so the tier
+# defers everything anyway (verified in-container; see PR #6).
 local_candidate:
-  enabled: true
+  enabled: false
   self_consistency_k: 2
   temp: 0
   max_tokens: 64

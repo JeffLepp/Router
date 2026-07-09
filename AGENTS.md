@@ -53,7 +53,7 @@ Task categories:
 
 Root files:
 
-- `Dockerfile`: builds the submission image. llama-server is Vulkan-enabled and Qwen3-14B is baked in, but the image must never *require* a GPU — with no device it falls back to CPU and remote routing.
+- `Dockerfile`: builds the submission image. CPU-only llama-server + Qwen2.5-3B Q4; the confirmed grading environment is 2 vCPU / 4GB RAM with no GPU, so never require Vulkan/GPU or a model that can't fit 4GB.
 - `docker/entrypoint.sh`: starts optional local server only when enabled, then runs the agent.
 - `agent/config.yaml`: runtime knobs: remote policy, local tier, batching, token caps, timeouts.
 - `dataset.json`: local public/dev task set only. Do not hardcode its answers.
