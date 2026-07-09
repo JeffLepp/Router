@@ -24,12 +24,13 @@ Each task flows through tiers, stopping at the first that can answer:
 
 1. **Classify** — regex cascade sorts the prompt into one of 8 categories.
 2. **Deterministic gate** — proof solvers answer safe tasks for **zero tokens**.
-3. **Local 3B candidate** *(Floor-CL, off by default)* — optional CPU model tier.
+3. **Local 14B candidate** *(Floor-CL, on by default)* — Qwen3-14B via llama.cpp, GPU-offloaded when a GPU is present, verified by the local gate.
 4. **Fireworks fallback** — one compact remote call for whatever's left.
 
-Default mode is **Floor-C**: tier 3 disabled, so there's no local server to start
-and the container stays portable on a CPU-only grader. See the architecture doc
-for the full diagram and module map.
+Default mode is now **Floor-CL**: tier 3 answers verified categories for zero
+tokens. With no GPU device the server runs on CPU and the local gate's latency
+cap defers everything to Fireworks, so a CPU-only grader still passes. See the
+architecture doc for the full diagram and module map.
 
 ### Input / output contract
 
@@ -112,9 +113,11 @@ python -m scripts.live_benchmark --container-image localhost:5000/floor-cl:test 
 
 ## Working on the local model (Floor-CL)
 
-The baked llama.cpp server is **CPU-only** — Track 1 advertises a 2 vCPU / 4GB
-grading target with no promised GPU driver, so a GPU-required image can fail
-before the router even starts.
+The baked llama.cpp server is built with the **Vulkan backend** and bakes
+**Qwen3-14B Q4_K_M** (9.0GB) — the hackathon instance has ~48GB of VRAM, so the
+whole model plus KV cache fits on-GPU. The entrypoint autodetects a GPU
+(`/dev/dri/renderD*`) and offloads all layers; with no GPU it runs CPU-only and
+the local gate simply defers to Fireworks, so GPU is never required.
 
 The entrypoint only starts llama-server when `local_candidate.enabled` is true in
 `agent/config.yaml` *and* at least one local category is enabled. Useful knobs:
@@ -127,7 +130,7 @@ The entrypoint only starts llama-server when `local_candidate.enabled` is true i
 ## Before you submit
 
 - [ ] Image builds for `linux/amd64` and passes `scripts/build_and_size.sh`
-      (compressed size well under 10GB — we're ~2.1GB).
+      (compressed size under 10GB — ~9.4GB with the 14B GGUF baked in).
 - [ ] Container writes `/output/results.json` and exits 0.
 - [ ] No keys, base URLs, `.env`, or model IDs baked into the image.
 - [ ] **Push the image to a public, pullable registry** (the local `localhost:5000`

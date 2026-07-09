@@ -31,14 +31,27 @@ if [ "$FORCE_STUB" = "1" ]; then
   echo "entrypoint: local stub forced, llama-server skipped" >&2
 elif [ "$START_LLAMA" = "1" ]; then
   echo "entrypoint: Floor-CL, starting llama-server" >&2
+  # Autodetect GPU: offload everything when a render node exists, else pure CPU.
+  if [ -z "${LLAMA_N_GPU_LAYERS:-}" ]; then
+    if ls /dev/dri/renderD* >/dev/null 2>&1; then
+      LLAMA_N_GPU_LAYERS=999
+    else
+      LLAMA_N_GPU_LAYERS=0
+    fi
+  fi
+  echo "entrypoint: n-gpu-layers=${LLAMA_N_GPU_LAYERS}" >&2
   GPU_ARGS=""
-  if [ "${LLAMA_N_GPU_LAYERS:-0}" != "0" ]; then
+  if [ "${LLAMA_N_GPU_LAYERS}" != "0" ]; then
     GPU_ARGS="--n-gpu-layers ${LLAMA_N_GPU_LAYERS}"
   fi
-  CTX_SIZE="${LLAMA_CTX_SIZE:-512}"
+  CTX_SIZE="${LLAMA_CTX_SIZE:-4096}"
   THREADS="${LLAMA_THREADS:-2}"
+  PARALLEL="${LLAMA_PARALLEL:-4}"
+  # --reasoning-budget 0: Qwen3 is a hybrid-thinking model; the local tier
+  # wants terse 64-token answers, not chain-of-thought.
   llama-server --model "$MODEL_GGUF" --host 127.0.0.1 --port "$LLAMA_PORT" \
-    --ctx-size "$CTX_SIZE" --threads "$THREADS" $GPU_ARGS >/tmp/llama.log 2>&1 &
+    --ctx-size "$CTX_SIZE" --threads "$THREADS" --parallel "$PARALLEL" \
+    --reasoning-budget 0 $GPU_ARGS >/tmp/llama.log 2>&1 &
   LLAMA_PID="$!"
   # Wait briefly; the accept-gate defers to Fireworks if llama is still warming.
   i=0

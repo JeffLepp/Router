@@ -11,19 +11,19 @@ llama:
   base_url: "http://127.0.0.1:8080/v1"
   model: "local"
 local_candidate:
-  enabled: false
+  enabled: true
   self_consistency_k: 2
   temp: 0
   max_tokens: 64
   latency_cap_s: 4
   categories:
-    actual_qa: false
-    math_reasoning: false
-    sentiment_analysis: false
+    actual_qa: true
+    math_reasoning: true
+    sentiment_analysis: true
     summarization: false
-    named_entity_recognition: false
-    code_debugging: false
-    logic_puzzles: false
+    named_entity_recognition: true
+    code_debugging: true
+    logic_puzzles: true
     code_generation: false
 batching:
   enabled: false
