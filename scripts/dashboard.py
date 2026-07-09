@@ -253,6 +253,7 @@ td.num, th.num { text-align: right; }
     <textarea id="prompt" placeholder="Type a prompt, or click a dataset task below…"></textarea>
     <div class="row">
       <button class="primary" id="route">Route it</button>
+      <button id="random">🎲 Random question</button>
       <button id="route-all">Route all dataset tasks</button>
       <label class="live"><input type="checkbox" id="live"> live Fireworks call (spends tokens)</label>
     </div>
@@ -304,8 +305,11 @@ fetch("/api/dataset").then(r => r.json()).then(({tasks}) => {
     el.appendChild(d);
   }
   if (!window.dataset.length) { el.textContent = "no dataset.json found"; el.classList.add("empty"); }
-  const auto = Number(new URLSearchParams(location.search).get("auto") || 0);
-  (async () => { for (const t of window.dataset.slice(0, auto)) await routeOne(t.id, t.prompt); })();
+  const params = new URLSearchParams(location.search);
+  (async () => {
+    for (const t of window.dataset.slice(0, Number(params.get("auto") || 0))) await routeOne(t.id, t.prompt);
+    for (let i = 0; i < Number(params.get("rand") || 0); i++) await randomQuestion();
+  })();
 });
 
 async function routeOne(taskId, prompt) {
@@ -323,6 +327,29 @@ async function routeOne(taskId, prompt) {
 }
 
 $("route").onclick = () => routeOne("adhoc-" + (results.length + 1), $("prompt").value);
+
+// random question generator — fresh operands/names each time, so the gate
+// is tested on inputs it has never seen (not just the fixed dataset)
+const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = arr => arr[rnd(0, arr.length - 1)];
+const RANDOM_QS = [
+  () => `What is ${rnd(12, 99)} + ${rnd(12, 99)}?`,
+  () => `What is ${rnd(13, 99)} × ${rnd(3, 12)}?`,
+  () => { const b = rnd(3, 12); return `What is ${b * rnd(4, 30)} / ${b}?`; },
+  () => `A ${pick(["car", "train", "cyclist"])} travels ${rnd(3, 12) * 10} km/h for ${rnd(2, 6)} hours. How far does it travel?`,
+  () => { const kind = pick(["cats", "dogs", "parrots", "whales"]), name = pick(["Milo", "Rex", "Pip", "Luna"]);
+          return `All ${kind} are animals. ${name} is a ${kind.slice(0, -1)}. Is ${name} an animal?`; },
+  () => `I ${pick(["absolutely loved", "really enjoyed", "was deeply disappointed by", "couldn't stand"])} this ${pick(["product", "movie", "restaurant", "album"])}; it ${pick(["exceeded all my expectations", "was a complete waste of money", "left me speechless", "was thoroughly mediocre"])}.`,
+  () => `Identify people and locations: '${pick(["Ada Lovelace", "Lionel Messi", "Marie Curie", "Haruki Murakami"])} visited ${pick(["Osaka", "Nairobi", "Lisbon", "Toronto"])} last ${pick(["summer", "winter", "week"])}.'`,
+  () => `${pick(["Who wrote the novel '1984'?", "What is the capital city of Australia?", "In which year did World War II end?", "What is the chemical symbol for gold?"])}`,
+];
+let randN = 0;
+function randomQuestion() {
+  const prompt = pick(RANDOM_QS)();
+  $("prompt").value = prompt;
+  return routeOne("rand-" + (++randN), prompt);
+}
+$("random").onclick = randomQuestion;
 $("route-all").onclick = async () => {
   if ($("live").checked && !confirm("Live mode: this calls Fireworks for every non-gate task and spends real tokens. Continue?")) return;
   for (const t of (window.dataset || [])) {
