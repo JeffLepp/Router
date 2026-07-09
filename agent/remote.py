@@ -99,6 +99,11 @@ def parse_allowed_models(raw: str | None = None) -> list[str]:
 
 
 def _param_count(model: str) -> float:
+    # MoE IDs advertise active params (gemma-4-26b-a4b -> 4); that tracks
+    # per-call cost better than total size.
+    match = re.search(r"\ba(\d+(?:\.\d+)?)b\b", model, re.I)
+    if match:
+        return float(match.group(1))
     match = re.search(r"(\d+(?:\.\d+)?)\s*b\b", model, re.I)
     if match:
         return float(match.group(1))
@@ -285,6 +290,13 @@ def _self_check() -> None:
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
     assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
     assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
+    assert _param_count("gemma-4-26b-a4b-it") == 4.0
+    assert _param_count("gemma-4-31b-it") == 31.0
+    assert _param_count("mixtral-8x7b-instruct") == 7.0
+    assert _param_count("minimax-m3") == 999.0
+    # Active-param awareness ranks the a4b MoE cheapest among unknown families.
+    ranked = rank_models(["foo-9b-it", "foo-26b-a4b-it"])
+    assert ranked[0] == "foo-26b-a4b-it", ranked
 
 
 if __name__ == "__main__":
