@@ -17,6 +17,7 @@ from agent.contracts import build_contracts
 from agent.gate import solve as gate_solve
 from agent.local_gate import try_local
 from agent.local_llm import make_local_client
+from agent.solvers.logic_solve import solve_certified_invalid
 
 
 @dataclass
@@ -116,13 +117,9 @@ async def _snapshot_loop(writer: SnapshotWriter, interval: float, stop: asyncio.
             await writer.write()
 
 
-async def _prepare_one(
+async def _prepare_deterministic_one(
     state: TaskState,
     contracts: dict[str, Any],
-    config: AgentConfig,
-    local_client: Any | None,
-    deadline: float,
-    remaining_tasks: int,
     writer: SnapshotWriter,
     semaphore: asyncio.Semaphore,
 ) -> None:
@@ -133,32 +130,64 @@ async def _prepare_one(
         answer = None
         if classification.confidence >= 0.6:
             answer = gate_solve(state.category, state.task.prompt)
+        if answer is None and state.category == "logic_puzzles":
+            answer = solve_certified_invalid(state.task.prompt)
         if answer is not None:
             state.answer = answer
-            state.source = "gate"
+            state.source = "certified_invalid" if '"valid":false' in answer else "gate"
             state.confidence = 1.0
         else:
-            local_answer = await try_local(
-                state.category,
-                state.task.prompt,
-                config=config.local_candidate,
-                llama_config=config.llama,
-                client=local_client,
-                deadline=deadline,
-                remaining_tasks=remaining_tasks,
-                classification_confidence=classification.confidence,
-                parallelism=config.local_slots,
-            )
-            if local_answer is not None:
-                state.answer = local_answer
-                state.source = "local"
-                state.confidence = max(state.confidence, 0.9)
-            else:
-                contract = contracts[state.category]
-                state.remote_prompt = contract.remote_prompt(state.task.prompt)
-                state.remote_max_tokens = contract.max_tokens
-                state.source = "deferred"
+            contract = contracts[state.category]
+            state.remote_prompt = contract.remote_prompt(state.task.prompt)
+            state.remote_max_tokens = contract.max_tokens
+            state.source = "deferred"
     await writer.write()
+
+
+def _summary_local_enabled(config: AgentConfig) -> bool:
+    local = dict(config.local_candidate or {})
+    categories = local.get("categories", {}) or {}
+    return bool(local.get("enabled", False)) and isinstance(categories, dict) and bool(
+        categories.get("summarization", False)
+    )
+
+
+async def _run_summary_local_queue(
+    states: list[TaskState],
+    config: AgentConfig,
+    local_client: Any,
+    writer: SnapshotWriter,
+    deadline: float,
+) -> None:
+    pending = [state for state in states if state.category == "summarization" and not state.answer]
+    if not pending:
+        return
+    cfg = dict(config.local_candidate or {})
+    queue_size = max(1, int(cfg.get("summary_queue_size", 1) or 1))
+    if queue_size != 1:
+        print("local_summary_queue forcing sequential queue_size=1", file=sys.stderr)
+    stage_seconds = float(cfg.get("summary_stage_timeout_s", 240) or 240)
+    stage_deadline = min(deadline, time.monotonic() + stage_seconds)
+    for index, state in enumerate(pending):
+        if time.monotonic() >= stage_deadline:
+            break
+        local_answer = await try_local(
+            "summarization",
+            state.task.prompt,
+            config=cfg,
+            llama_config=config.llama,
+            client=local_client,
+            deadline=stage_deadline,
+            remaining_tasks=len(pending) - index,
+            classification_confidence=state.confidence,
+            parallelism=1,
+        )
+        if local_answer is None:
+            continue
+        state.answer = local_answer
+        state.source = "local"
+        state.confidence = max(state.confidence, 0.9)
+        await writer.write()
 
 
 async def _run_remote(
@@ -167,19 +196,21 @@ async def _run_remote(
     contracts: dict[str, Any],
     writer: SnapshotWriter,
     deadline: float,
+    client: Any | None = None,
 ) -> Any | None:
     deferred = [state for state in states if not state.answer]
     if not deferred or not config.remote_enabled:
-        return None
+        return client
 
     remote_module = importlib.import_module("agent.remote")
-    client = remote_module.RemoteClient(
-        timeout=float(config.remote.get("timeout_seconds", 25)),
-        retries=int(config.remote.get("retries", 2)),
-        temperature=float(config.remote.get("temperature", 0)),
-        usd_per_mtok=float(config.remote.get("usd_per_mtok", 0) or 0),
-        dev_spend_cap=float(config.remote.get("dev_spend_cap", 0) or 0),
-    )
+    if client is None:
+        client = remote_module.RemoteClient(
+            timeout=float(config.remote.get("timeout_seconds", 25)),
+            retries=int(config.remote.get("retries", 2)),
+            temperature=float(config.remote.get("temperature", 0)),
+            usd_per_mtok=float(config.remote.get("usd_per_mtok", 0) or 0),
+            dev_spend_cap=float(config.remote.get("dev_spend_cap", 0) or 0),
+        )
     calls = [
         remote_module.RemoteCall(
             task_id=state.task.task_id,
@@ -244,6 +275,7 @@ async def _run_remote(
             complete_one=safe_complete,
             complete_batch=safe_complete,
             max_batch_size=int(batching.get("max_batch_size", 10) or 10),
+            code_enabled=bool(batching.get("code_enabled", False)),
         )
         for task_id, payload in payloads.items():
             await write_payload(task_id, payload)
@@ -283,29 +315,38 @@ async def run_agent() -> int:
     start = time.monotonic()
     deadline = start + config.wall_seconds
     contracts = build_contracts(config.max_tokens)
-    local_sem = asyncio.Semaphore(config.local_slots)
+    prepare_sem = asyncio.Semaphore(config.local_slots)
     state_list = list(states.values())
-    local_client = None
-    if bool(config.local_candidate.get("enabled", False)):
-        local_client = await make_local_client(config.llama, config.local_candidate)
 
     try:
         await asyncio.gather(
             *(
-                _prepare_one(
+                _prepare_deterministic_one(
                     state,
                     contracts,
-                    config,
-                    local_client,
-                    deadline,
-                    len(state_list),
                     writer,
-                    local_sem,
+                    prepare_sem,
                 )
                 for state in state_list
             )
         )
-        remote_client = await _run_remote(state_list, config, contracts, writer, deadline)
+        remote_client = None
+        if _summary_local_enabled(config):
+            local_client = await make_local_client(config.llama, config.local_candidate)
+            non_summaries = [state for state in state_list if state.category != "summarization"]
+            summaries = [state for state in state_list if state.category == "summarization"]
+            remote_task = asyncio.create_task(
+                _run_remote(non_summaries, config, contracts, writer, deadline)
+            )
+            await _run_summary_local_queue(
+                summaries, config, local_client, writer, deadline
+            )
+            remote_client = await remote_task
+            remote_client = await _run_remote(
+                summaries, config, contracts, writer, deadline, client=remote_client
+            )
+        else:
+            remote_client = await _run_remote(state_list, config, contracts, writer, deadline)
         await writer.write()
         if remote_client is not None:
             ledger = remote_client.ledger.as_dict()

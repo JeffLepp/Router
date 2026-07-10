@@ -113,6 +113,9 @@ class StubLocalLLM:
         return ("The final answer needs arithmetic from the prompt.", 0.35)
 
     def _summary(self, task: str) -> tuple[str, float]:
+        forced = os.environ.get("STUB_SUMMARY_RESPONSE")
+        if forced is not None:
+            return (forced, 0.9)
         text = re.sub(r"\s+", " ", task).strip()
         text = re.sub(r"(?i)^summari[sz]e.*?:", "", text).strip()
         words = text.split()
@@ -150,12 +153,14 @@ class LlamaCppClient:
         temperature: float = 0.0,
         max_tokens: int = 64,
         timeout: float = 4.0,
+        system_prompt: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.temperature = temperature
         self.max_tokens = max(1, int(max_tokens))
         self.timeout = max(0.1, float(timeout))
+        self.system_prompt = system_prompt.strip()
 
     async def generate(
         self,
@@ -184,9 +189,13 @@ class LlamaCppClient:
     async def _complete(
         self, prompt: str, temperature: float, max_tokens: int, timeout: float
     ) -> str | None:
+        messages = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": prompt})
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
@@ -215,6 +224,9 @@ async def make_local_client(
         temperature=float(local_config.get("temp", 0) or 0),
         max_tokens=int(local_config.get("max_tokens", 64) or 64),
         timeout=float(local_config.get("latency_cap_s", 4) or 4),
+        system_prompt=os.environ.get(
+            "LOCAL_SYSTEM_PROMPT", str(llama_config.get("system_prompt", ""))
+        ),
     )
 
 

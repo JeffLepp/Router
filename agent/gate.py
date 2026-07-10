@@ -9,6 +9,7 @@ from agent.solvers import (
     logic_solve,
     ner_solve,
     sentiment_solve,
+    summary_solve,
     wordmath,
 )
 
@@ -35,7 +36,7 @@ SOLVERS: dict[str, Solver] = {
     "actual_qa": _defer,
     "math_reasoning": _first(arithmetic.solve, wordmath.solve),
     "sentiment_analysis": sentiment_solve.solve,
-    "summarization": _defer,
+    "summarization": summary_solve.solve,
     "named_entity_recognition": ner_solve.solve,
     "code_debugging": code_solve.solve,
     "logic_puzzles": logic_solve.solve,

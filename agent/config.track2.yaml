@@ -1,7 +1,6 @@
-# Track 2 profile: local-first routing on the 2 vCPU / 4GB CPU-only grader.
-# Pair with a 1.5B Q4 GGUF (see README "Track 2"): the 3B is RAM-safe but too
-# slow to clear the latency cap on 2 vCPUs; a 1.5B roughly halves latency.
-# Select at runtime with CONFIG_PATH=/app/agent/config.track2.yaml.
+# Candidate Floor-CL profile: summary-only local transformation on the 2 vCPU / 4GB
+# CPU-only grader. Use only after the baked GGUF passes the precision/latency bakeoff;
+# config.yaml remains the safe Floor-C default.
 token_budget: 0
 mandatory_remote: 1
 local_slots: 4
@@ -14,43 +13,34 @@ model_paths:
 llama:
   base_url: "http://127.0.0.1:8080/v1"
   model: "local"
+  system_prompt: ""
 local_candidate:
   enabled: true
-  # ponytail: k=1 — self-consistency doubles latency and 2 vCPUs can't pay it;
-  # raise if a faster grader shows up.
   self_consistency_k: 1
   temp: 0
-  max_tokens: 48
-  # Summaries need ~150-220 tokens; 220 tok at ~15 tok/s on 2 vCPU is ~15s.
-  latency_cap_s: 25
-  summary_max_tokens: 220
-  # MEASURED DEAD END (2026-07-09, Docker, --cpus=2 --memory=4g, 80-task set).
-  # The local 1.5B is knowledge-free: it may only TRANSFORM text, never RECALL facts.
-  #   actual_qa local   -> 2/10 (7/10 remote): hallucinated Rishi Sunak, Blue Origin,
-  #                        "Yale before Harvard", and answered the deliberately
-  #                        unanswerable qa_009. k>1 cannot catch a confidently
-  #                        repeated hallucination, so no accept-gate can save it.
-  #   sentiment local   -> 5/10 (9/10 remote): aspect_based tasks need an `aspects`
-  #                        object _accept_sentiment cannot emit; sarcasm read literally.
-  #   summarization local -> quality is fine (9/10 accepted standalone) but latency is
-  #                        5-60s/task on 2 vCPU (summary_007 timed out at 60s), which
-  #                        breaks the 30s/request cap; under 4 local_slots against a
-  #                        1-slot llama-server only 1 of 10 landed inside a 25s cap.
-  #                        It also ignores negative constraints ("do not mention the
-  #                        date") that _accept_summary does not check.
-  # Net: the local model absorbs nothing safely. math/ner/code/logic are gate-solved or
-  # skipped before generation, so they cost nothing either way. Ship Floor-C (config.yaml).
+  max_tokens: 64
+  latency_cap_s: 35
+  summary_queue_size: 1
+  summary_retries: 1
+  summary_task_timeout_s: 35
+  summary_stage_timeout_s: 240
+  summary_max_tokens:
+    one_sentence: 64
+    three_sentences: 110
+    structured_report: 150
+    default: 150
   categories:
     actual_qa: false
-    math_reasoning: true
+    math_reasoning: false
     sentiment_analysis: false
-    summarization: false
-    named_entity_recognition: true
-    code_debugging: true
-    logic_puzzles: true
+    summarization: true
+    named_entity_recognition: false
+    code_debugging: false
+    logic_puzzles: false
     code_generation: false
 batching:
-  enabled: false
+  enabled: true
+  code_enabled: false
   max_batch_size: 10
 remote:
   timeout_seconds: 25
@@ -65,5 +55,5 @@ max_tokens:
   summarization: 220
   named_entity_recognition: 60
   code_debugging: 300
-  logic_puzzles: 40
+  logic_puzzles: 60
   code_generation: 300

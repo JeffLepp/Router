@@ -11,6 +11,15 @@ PLATFORM="linux/amd64"
 MAX_BYTES=$((10 * 1000 * 1000 * 1000))   # 10 GB compressed
 LOCAL_REG=""
 
+if python3 -c 'pass' >/dev/null 2>&1; then
+  PYTHON_BIN=python3
+elif python -c 'pass' >/dev/null 2>&1; then
+  PYTHON_BIN=python
+else
+  echo "FAIL: no working Python interpreter on the build host"
+  exit 1
+fi
+
 docker_host_path() {
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -w "$1"
@@ -55,7 +64,7 @@ smoke() {
   mkdir -p "$work/input" "$work/output"
   cat > "$work/input/tasks.json" <<'JSON'
 [{"task_id":"t1","prompt":"What is 2 + 2?"},
- {"task_id":"t2","prompt":"What is a GPU?"}]
+ {"task_id":"t2","prompt":"Summarize in one sentence: The Apollo mission carried 3 astronauts to the Moon and returned them safely to Earth after completing its goals."}]
 JSON
   # Self-contained smoke: m=0/B=0 disables the remote path (zero tokens, no net).
   # awk, not pyyaml, so this runs on any build host. Floor-CL enables one local
@@ -69,7 +78,7 @@ JSON
     /^mandatory_remote:/ {print "mandatory_remote: 0"; next}
     inlc && /^  enabled:/ {print "  enabled: " en; next}
     inlc && /^  categories:/ {incats=1; print; next}
-    inlc && incats && /^    actual_qa:/ {print "    actual_qa: " en; next}
+    inlc && incats && /^    summarization:/ {print "    summarization: " en; next}
     {print}
   ' "$ROOT/agent/config.yaml" > "$work/config.yaml"
   local input_mount output_mount config_mount
@@ -80,12 +89,13 @@ JSON
   MSYS_NO_PATHCONV=1 docker run --rm --platform "$PLATFORM" \
     -e CONFIG_PATH=/cfg/config.yaml \
     -e AGENT_FORCE_STUB=1 \
+    -e STUB_SUMMARY_RESPONSE="Apollo carried 3 astronauts to the Moon, completed its goals, and returned safely to Earth." \
     -v "$input_mount:/input:ro" -v "$output_mount:/output" \
     -v "$config_mount:/cfg/config.yaml:ro" \
     "$IMAGE"
   local results_path
   results_path="$(docker_host_path "$work/output/results.json")"
-  python3 - "$results_path" "$enabled" <<'PY'
+  "$PYTHON_BIN" - "$results_path" "$enabled" <<'PY'
 import json
 import sys
 

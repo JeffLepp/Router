@@ -4,10 +4,14 @@ import re
 import textwrap
 
 from agent.verify.code_v import run_inline_examples, run_python, safety_error, syntax_ok
+from agent.solvers import sql_solve
 
 
 def solve(prompt: str) -> str | None:
     lower = prompt.lower()
+    sql_answer = sql_solve.solve(prompt)
+    if sql_answer is not None:
+        return sql_answer
     if _mentions_non_python(lower):
         return None
     if "python" not in lower and "```py" not in lower:

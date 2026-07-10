@@ -44,8 +44,10 @@ elif [ "$START_LLAMA" = "1" ]; then
   fi
   CTX_SIZE="${LLAMA_CTX_SIZE:-512}"
   THREADS="${LLAMA_THREADS:-2}"
+  PARALLEL="${LLAMA_PARALLEL:-1}"
   llama-server --model "$MODEL_GGUF" --host 127.0.0.1 --port "$LLAMA_PORT" \
-    --ctx-size "$CTX_SIZE" --threads "$THREADS" $GPU_ARGS >/tmp/llama.log 2>&1 &
+    --ctx-size "$CTX_SIZE" --threads "$THREADS" --parallel "$PARALLEL" \
+    $GPU_ARGS >/tmp/llama.log 2>&1 &
   LLAMA_PID="$!"
   # Wait briefly; the accept-gate defers to Fireworks if llama is still warming.
   i=0

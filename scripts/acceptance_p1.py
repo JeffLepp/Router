@@ -148,11 +148,18 @@ def validate_results(path: Path) -> list[dict[str, str]]:
     return rows
 
 
-def start_mock(port: int) -> subprocess.Popen[str]:
+def start_mock(port: int, host: str = "127.0.0.1") -> subprocess.Popen[str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
     proc = subprocess.Popen(
-        [PYTHON, str(ROOT / "scripts" / "mock_fireworks.py"), "--port", str(port)],
+        [
+            PYTHON,
+            str(ROOT / "scripts" / "mock_fireworks.py"),
+            "--host",
+            host,
+            "--port",
+            str(port),
+        ],
         cwd=ROOT,
         env=env,
         stdout=subprocess.PIPE,
@@ -332,13 +339,14 @@ def test_batcher_malformed_line() -> None:
     import asyncio
 
     from agent.batcher import complete_with_batching
+    from agent.contracts import build_contracts
     from agent.remote import RemoteCall
 
-    instruction = "Return exactly one label: positive, negative, neutral, or mixed."
+    contract = build_contracts()["sentiment_analysis"]
     calls = [
-        RemoteCall("t1", "sentiment_analysis", f"{instruction}\nKernel: I love it.", 2),
-        RemoteCall("t2", "sentiment_analysis", f"{instruction}\nKernel: It exists.", 2),
-        RemoteCall("t3", "sentiment_analysis", f"{instruction}\nKernel: I hate it.", 2),
+        RemoteCall("t1", "sentiment_analysis", contract.remote_prompt("I love it."), contract.max_tokens),
+        RemoteCall("t2", "sentiment_analysis", contract.remote_prompt("It exists."), contract.max_tokens),
+        RemoteCall("t3", "sentiment_analysis", contract.remote_prompt("I hate it."), contract.max_tokens),
     ]
     rerun: list[str] = []
 
@@ -356,6 +364,152 @@ def test_batcher_malformed_line() -> None:
     assert rerun == ["t2"]
     assert saved > 0
     print(f"BATCH_TEST saved_estimated_tokens={saved} rerun={rerun}")
+
+
+def test_batcher_preserves_ner_entities() -> None:
+    from agent.batcher import parse_batch_response
+    from agent.contracts import build_contracts
+    from agent.remote import RemoteCall
+    from eval.score import score_one
+
+    calls = [
+        RemoteCall("n1", "named_entity_recognition", "p1", 60),
+        RemoteCall("n2", "named_entity_recognition", "p2", 60),
+    ]
+    parsed = parse_batch_response(
+        calls,
+        "1) Elon Musk|PERSON; Toronto|LOCATION\n"
+        "2) Apple|ORGANIZATION; $3 billion|MONEY; Arm|ORGANIZATION",
+    )
+    assert not parsed.rerun
+    assert parsed.payloads["n1"] == "Elon Musk|PERSON\nToronto|LOCATION"
+    answer = build_contracts()["named_entity_recognition"].assemble("", parsed.payloads["n1"])
+    expected = {
+        "entities": [
+            {"text": "Elon Musk", "type": "PERSON"},
+            {"text": "Toronto", "type": "LOCATION"},
+        ]
+    }
+    assert score_one(answer, expected, "entity_match")
+
+
+def test_mock_recognizes_batch_protocol() -> None:
+    from agent.batcher import build_batch_call, parse_batch_response
+    from agent.contracts import build_contracts
+    from agent.remote import RemoteCall
+    from scripts.mock_fireworks import Handler
+
+    contracts = build_contracts()
+    cases = (
+        ("actual_qa", 10, "What is a GPU?"),
+        ("sentiment_analysis", 3, "I love it."),
+        ("named_entity_recognition", 3, "Extract entities: AMD opened an office in Seattle."),
+    )
+    for category, count, prompt in cases:
+        contract = contracts[category]
+        calls = [
+            RemoteCall(
+                f"{category}_{index}",
+                category,
+                contract.remote_prompt(prompt),
+                contract.max_tokens,
+            )
+            for index in range(1, count + 1)
+        ]
+        batch_call = build_batch_call(calls)
+        assert "one line per item" in batch_call.prompt.lower()
+        response = Handler._content(None, batch_call.prompt, batch_call.max_tokens)
+        parsed = parse_batch_response(calls, response)
+        assert not parsed.rerun, (category, response)
+        assert set(parsed.payloads) == {call.task_id for call in calls}
+        assert f"{count})" in response
+
+
+def test_benchmark_accumulates_batch_rerun_tokens() -> None:
+    from scripts.live_benchmark import _ledger_by_task
+
+    entries = [
+        {
+            "task_id": "batch:a,b",
+            "model": "batch-model",
+            "total_tokens": 100,
+            "prompt_tokens": 80,
+            "completion_tokens": 20,
+        },
+        {
+            "task_id": "b",
+            "model": "retry-model",
+            "total_tokens": 30,
+            "prompt_tokens": 20,
+            "completion_tokens": 10,
+        },
+    ]
+    by_task = _ledger_by_task(entries)
+    assert by_task["a"]["total_tokens"] == 50
+    assert by_task["b"]["total_tokens"] == 80
+    assert by_task["b"]["model"] == "retry-model"
+    assert sum(entry["total_tokens"] for entry in by_task.values()) == 130
+
+    uneven = _ledger_by_task(
+        [{"task_id": "batch:a,b,c", "total_tokens": 101, "prompt_tokens": 80, "completion_tokens": 21}]
+    )
+    assert sum(entry["total_tokens"] for entry in uneven.values()) == 101
+    assert sum(entry["prompt_tokens"] for entry in uneven.values()) == 80
+    assert sum(entry["completion_tokens"] for entry in uneven.values()) == 21
+
+
+def test_code_batch_partial_rerun() -> None:
+    import asyncio
+
+    from agent.batcher import build_batch_call, complete_with_batching, parse_batch_response
+    from agent.contracts import build_contracts
+    from agent.remote import RemoteCall
+
+    contract = build_contracts()["code_generation"]
+    calls = [
+        RemoteCall(
+            f"c{index}",
+            "code_generation",
+            contract.remote_prompt(f"Write a Python function f{index} that returns {index}."),
+            contract.max_tokens,
+        )
+        for index in range(1, 4)
+    ]
+    batch = build_batch_call(calls)
+    assert "<<<ITEM_1>>>" in batch.prompt and "<<<ANSWER_N>>>" in batch.prompt
+    partial = (
+        "<<<ANSWER_1>>>\ndef f1():\n    return 1\n<<<END_ANSWER_1>>>\n"
+        "<<<ANSWER_3>>>\ndef f3():\n    return 3\n<<<END_ANSWER_3>>>"
+    )
+    parsed = parse_batch_response(calls, partial)
+    assert set(parsed.payloads) == {"c1", "c3"}
+    assert [call.task_id for call in parsed.rerun] == ["c2"]
+
+    wrong_language = parse_batch_response(
+        calls[:1],
+        "<<<ANSWER_1>>>\nfunction f1() { return 1; }\n<<<END_ANSWER_1>>>",
+    )
+    assert not wrong_language.payloads and [call.task_id for call in wrong_language.rerun] == ["c1"]
+
+    rerun: list[str] = []
+
+    async def complete_batch(_call: RemoteCall) -> str:
+        return partial
+
+    async def complete_one(call: RemoteCall) -> str:
+        rerun.append(call.task_id)
+        return "def f2():\n    return 2"
+
+    payloads, _saved = asyncio.run(
+        complete_with_batching(
+            calls,
+            complete_one=complete_one,
+            complete_batch=complete_batch,
+            code_enabled=True,
+        )
+    )
+    assert set(payloads) == {"c1", "c2", "c3"}
+    assert rerun == ["c2"]
 
 
 def test_default_config_is_floor_c() -> None:
@@ -376,6 +530,10 @@ def main() -> None:
         ("verifier self-checks", test_verifiers),
         ("model preferences", test_model_preferences),
         ("batcher malformed line", test_batcher_malformed_line),
+        ("batcher NER entities", test_batcher_preserves_ner_entities),
+        ("mock batch protocol", test_mock_recognizes_batch_protocol),
+        ("batch rerun token accounting", test_benchmark_accumulates_batch_rerun_tokens),
+        ("code batch partial rerun", test_code_batch_partial_rerun),
         ("default config is Floor-C", test_default_config_is_floor_c),
     ]
     for name, func in tests:

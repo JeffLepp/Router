@@ -85,6 +85,29 @@ def test_phase0a_classifier_routes() -> None:
         if routed[task_id] != rows[task_id]["category"]
     ]
     assert not wrong, "wrong Phase 0A classifier routes: " + repr(wrong)
+
+    regression_prompts = {
+        "Write a summary function in Python": "code_generation",
+        "Create a summary table in SQL": "code_generation",
+        "Create an executive summary of this report in three sentences: Costs fell.": "summarization",
+        "Write a summary of this Python function in two sentences: def f(): return 1": "summarization",
+        "Summarize this meeting: the authentication function has a bug.": "summarization",
+        "Fix the bug in this function:\n```python\ndef f(): return summary\n```": "code_debugging",
+    }
+
+    async def classify_regressions() -> dict[str, str]:
+        return {
+            prompt: (await classify(prompt, None)).category
+            for prompt in regression_prompts
+        }
+
+    regression_routes = asyncio.run(classify_regressions())
+    regression_wrong = [
+        (prompt, expected, regression_routes[prompt])
+        for prompt, expected in regression_prompts.items()
+        if regression_routes[prompt] != expected
+    ]
+    assert not regression_wrong, "wrong summary/code regression routes: " + repr(regression_wrong)
     print("CLASSIFIER_PHASE0A sentiment=5 code_generation=1 logic_puzzles=1")
 
 
@@ -107,6 +130,10 @@ def _assert_holdout_precision() -> None:
 def evaluate_item(item: dict[str, Any], answer: str) -> bool:
     method = item["evaluation_method"]
     expected = item["expected_answer"]
+    if method in {"semantic_similarity", "contains_essential_points"}:
+        from eval.judge import _offline_judge
+
+        return _offline_judge(answer, expected, method)
     if method == "unanswerable":
         return _is_unanswerable(answer)
     if method in {"numeric_exact_match", "numeric_tolerance"}:
@@ -122,7 +149,9 @@ def evaluate_item(item: dict[str, Any], answer: str) -> bool:
     if method in {"boolean_logic", "constraint_logic"}:
         return _logic_match(answer, expected)
     if method in {"unit_tests", "review_comment", "query_validation", "query_match", "schema_match"}:
-        return _code_match(item["id"], answer)
+        from eval.score import score_task
+
+        return score_task(item, answer)
     return False
 
 
@@ -243,6 +272,64 @@ def test_trap_defer_cases() -> None:
     print(f"PASS trap defer cases ({len(traps)})")
 
 
+def test_structured_solver_adversarial_cases() -> None:
+    from agent.solvers.csp import FiniteDomainProblem
+    from agent.solvers.logic_solve import solve_certified_invalid
+    from agent.solvers.sql_solve import solve as solve_sql
+    from agent.solvers.summary_solve import solve as solve_summary
+
+    meeting = (
+        "Summarize this meeting in three bullets and list all action items:\n"
+        "'The team reviewed launch readiness. Mina found a blocker. "
+        "Action items: Mina will fix the blocker, and Jo will rerun the tests.'"
+    )
+    summary = solve_summary(meeting)
+    assert summary is not None
+    assert summary.split("\n\n", 1)[0].count("\n- ") + 1 == 3
+    assert summary.count("Mina will fix the blocker") == 2
+    assert summary.count("Jo will rerun the tests") == 2
+    assert solve_summary(meeting.replace("three bullets", "four bullets")) is None
+    assert solve_summary(meeting.replace("Action items:", "Next steps:")) is None
+    assert solve_summary(meeting.replace("Jo will rerun", "Mina will rerun")) is None
+
+    assert solve_sql(
+        "Write a SQL query to select all columns from a table named `customers` where the "
+        "`country` column equals 'Canada'."
+    ) == "SELECT * FROM customers WHERE country = 'Canada';"
+    assert solve_sql("DELETE FROM customers WHERE country = 'Canada';") is None
+    assert solve_sql("Create table pets with columns name (varchar), owner_id (foreign key).") is None
+    explicit_fk = solve_sql(
+        "Create table pets with columns pet_id (int primary key), owner_id (int foreign key "
+        "references people(person_id)), name (varchar)."
+    )
+    assert explicit_fk and "REFERENCES people(person_id)" in explicit_fk
+
+    unique = FiniteDomainProblem()
+    for name in ("A", "B", "C"):
+        unique.add_variable(name, range(3))
+    unique.add_all_different(("A", "B", "C"))
+    unique.add_constraint(("A",), lambda a: a["A"] == 0)
+    unique.add_constraint(("B",), lambda a: a["B"] == 1)
+    assert len(unique.solutions()) == 1
+    ambiguous = FiniteDomainProblem()
+    ambiguous.add_variable("A", range(2))
+    ambiguous.add_variable("B", range(2))
+    ambiguous.add_all_different(("A", "B"))
+    assert len(ambiguous.solutions()) == 2
+    impossible = FiniteDomainProblem()
+    impossible.add_variable("A", (0,))
+    impossible.add_constraint(("A",), lambda a: a["A"] == 1)
+    assert impossible.solutions() == []
+
+    underdetermined = (
+        "Three friends—Ariel, Bianca, and Chris—received distinct grades A, B, and C on a test. "
+        "Ariel did not get the highest grade. Bianca's grade was not B. Who got grade B?"
+    )
+    assert gate_solve("logic_puzzles", underdetermined) is None
+    assert solve_certified_invalid(underdetermined) == '{"answer":null,"valid":false}'
+    print("PASS structured solver adversarial cases")
+
+
 def test_pipeline_remote_drop() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
@@ -279,6 +366,7 @@ def main() -> None:
     test_phase0a_classifier_routes()
     test_gate_precision_recall()
     test_trap_defer_cases()
+    test_structured_solver_adversarial_cases()
     test_pipeline_remote_drop()
     test_code_sandbox_guards()
 

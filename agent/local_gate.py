@@ -11,7 +11,7 @@ from typing import Any
 from agent.classify import canonical_category
 from agent.config import AgentConfig
 from agent.local_llm import LocalResult, make_local_client, normalize_sample
-from agent.solvers.common import compact_json
+from agent.solvers.common import compact_json, normalize
 from agent.solvers.ner_solve import (
     EVENT_PATTERNS,
     LOCATION_NAMES,
@@ -48,6 +48,7 @@ async def try_local(
     now: Callable[[], float] | None = None,
     classification_confidence: float = 1.0,
     parallelism: int = 1,
+    diagnostics: dict[str, Any] | None = None,
 ) -> str | None:
     """Return a verified local answer, or None to defer to Fireworks."""
 
@@ -65,7 +66,8 @@ async def try_local(
     if _must_skip_before_generation(local_category, prompt):
         return None
 
-    cap = float(cfg.get("latency_cap_s", 4) or 4)
+    cap_key = "summary_task_timeout_s" if local_category == "summarization" else "latency_cap_s"
+    cap = float(cfg.get(cap_key, cfg.get("latency_cap_s", 4)) or 4)
     if _deadline_tight(deadline, remaining_tasks, cap, now or time.monotonic, parallelism):
         return None
 
@@ -74,6 +76,7 @@ async def try_local(
 
     k = max(1, int(cfg.get("self_consistency_k", 2) or 2))
     generation_k = k if _uses_self_consistency(local_category) else 1
+    generation_started = time.monotonic()
     result = await _generate(
         client,
         _local_prompt(local_category, prompt),
@@ -84,6 +87,8 @@ async def try_local(
     )
     if result is None:
         return None
+    if diagnostics is not None:
+        diagnostics["candidate"] = result.text
 
     if local_category == "math_reasoning":
         return _accept_math(prompt, result.text)
@@ -100,7 +105,25 @@ async def try_local(
     if local_category == "sentiment_analysis":
         return _accept_sentiment(prompt, result.samples, k)
     if local_category == "summarization":
-        return _accept_summary(prompt, result.text)
+        accepted = _accept_summary(prompt, result.text)
+        retries = max(0, int(cfg.get("summary_retries", 0) or 0))
+        if accepted is None and retries:
+            remaining = cap - (time.monotonic() - generation_started)
+            if remaining > 0.25:
+                retry = await _generate(
+                    client,
+                    _summary_retry_prompt(prompt, result.text),
+                    local_category,
+                    1,
+                    cfg,
+                    remaining,
+                )
+                if retry is not None:
+                    if diagnostics is not None:
+                        diagnostics["candidate"] = retry.text
+                        diagnostics["first_candidate"] = result.text
+                    accepted = _accept_summary(prompt, retry.text)
+        return accepted
     return None
 
 
@@ -147,6 +170,14 @@ def _must_skip_before_generation(category: str, prompt: str) -> bool:
         return not _extract_assertions(prompt)
     if category == "logic_puzzles":
         return not _extract_order_edges(prompt)
+    if category == "summarization" and re.search(
+        r"\b(?:without|do\s+not|don't)\s+(?:mention(?:ing)?\s+)?(?:its\s+)?main\s+conclusion\b",
+        prompt,
+        re.I,
+    ):
+        # A small local model cannot prove which proposition is the main conclusion. Accuracy
+        # wins over one saved call, so this exclusion is enforced by deferring before generation.
+        return True
     return False
 
 
@@ -211,7 +242,7 @@ async def _call_generate(
             category=category,
             k=k,
             temperature=float(cfg.get("temp", 0) or 0),
-            max_tokens=_local_max_tokens(category, cfg),
+            max_tokens=_local_max_tokens(category, cfg, prompt),
             timeout=timeout,
         )
     except TypeError:
@@ -230,16 +261,37 @@ def _local_prompt(category: str, prompt: str) -> str:
         "code_debugging": "Return corrected Python code only.",
         "code_generation": "Return Python code only.",
         "logic_puzzles": "Return the final assignment or ordering only.",
-        "summarization": "Summarize the text. Keep the key facts and any action items. Obey the requested format and length. Output only the summary.",
+        "summarization": (
+            "Rewrite the source concisely. Preserve every source name, number, date, and action "
+            "assignee unless the task explicitly excludes it. Introduce no new facts. Obey the "
+            "requested sentence or bullet count exactly. Output only the summary."
+        ),
         "formatting": "Return only the requested formatted answer.",
     }
     return f"{instructions.get(category, 'Return the final answer only')}\nTASK:\n{prompt.strip()}"
 
 
-def _local_max_tokens(category: str, cfg: dict[str, Any]) -> int:
-    # Summaries need room (~150-220 tok); short categories stay small to keep 2-vCPU latency low.
+def _local_max_tokens(category: str, cfg: dict[str, Any], prompt: str = "") -> int:
     if category == "summarization":
-        return int(cfg.get("summary_max_tokens", 220) or 220)
+        caps = cfg.get("summary_max_tokens", {}) or {}
+        if not isinstance(caps, dict):
+            return int(caps or 150)
+        lowered = prompt.lower()
+        if re.search(r"\b(?:one|1)\s+sentence\b", lowered):
+            key = "one_sentence"
+        elif re.search(r"\b(?:three|3)\s+sentences?\b", lowered):
+            key = "three_sentences"
+        elif re.search(r"\b(?:bullets?|action\s+items?|structured)\b", lowered):
+            key = "structured_report"
+        else:
+            key = "default"
+        defaults = {
+            "one_sentence": 64,
+            "three_sentences": 110,
+            "structured_report": 150,
+            "default": 150,
+        }
+        return int(caps.get(key, defaults[key]) or defaults[key])
     return int(cfg.get("max_tokens", 64) or 64)
 
 
@@ -325,15 +377,27 @@ def _accept_format(prompt: str, candidate: str) -> str | None:
 
 
 def _accept_summary(prompt: str, candidate: str) -> str | None:
-    """Precision-safe local summary gate: accept only a clean, correctly-sized English
-    summary; anything doubtful defers to Fireworks (accuracy-first). Dormant until config
-    enables summarization (config.track2.yaml) and its 1.5B latency is validated on Docker."""
+    """Accept only summaries whose important surface facts can be checked against source."""
     text = candidate.strip()
     if not text or not format_v.englishish(text):
         return None
-    if "```" in text or re.search(r"\[[^\]]*\]", text):  # code fences / [placeholder] artifacts
+    if "```" in text or re.search(r"\[[^\]]*\]", text):
+        return None
+    if re.match(r"^(?:summary|answer|response)\s*:", text, re.I):
+        return None
+    if re.search(
+        r"\b(?:previous\s+draft|omitted\s+(?:source\s+)?facts?|all\s+sources?|"
+        r"source\s+facts?|prior\s+drafts?)\b",
+        text,
+        re.I,
+    ):
         return None
     lowered = prompt.lower()
+    if re.search(
+        r"\b(?:without|do\s+not|don't)\s+(?:mention(?:ing)?\s+)?(?:its\s+)?main\s+conclusion\b",
+        lowered,
+    ):
+        return None
     match = re.search(
         r"(?:under|at most|no more than|within|fewer than|less than)\s+(\d+)\s+words?", lowered
     )
@@ -342,7 +406,241 @@ def _accept_summary(prompt: str, candidate: str) -> str | None:
     words = format_v.word_count(text)
     if words < 3 or words > 200:
         return None
+    source = _summary_source(prompt)
+    if not source or format_v.word_count(source) < 5:
+        return None
+
+    if not _summary_shape_matches(prompt, text):
+        return None
+    if _raw_passage_copy(source, text):
+        return None
+    if not _source_sentences_covered(source, text):
+        return None
+    source_terms = _content_terms(source)
+    candidate_terms = _content_terms(text)
+    if candidate_terms and len(source_terms & candidate_terms) / len(candidate_terms) < 0.65:
+        return None
+
+    date_excluded = bool(
+        re.search(r"\b(?:do\s+not|don't|without)\s+mention(?:ing)?\s+(?:the\s+)?date\b", lowered)
+    )
+    fact_source = source
+    if date_excluded:
+        if _date_spans(text):
+            return None
+        for date in _date_spans(source):
+            fact_source = fact_source.replace(date, " ")
+
+    source_numbers = _number_facts(fact_source)
+    candidate_numbers = _number_facts(text)
+    if not source_numbers.issubset(candidate_numbers):
+        return None
+    if not candidate_numbers.issubset(_number_facts(source)):
+        return None
+
+    source_names = _proper_name_tokens(fact_source)
+    candidate_names = _proper_name_tokens(text, known=source_names)
+    if not source_names.issubset(candidate_names):
+        return None
+    if not candidate_names.issubset(source_names):
+        return None
+
+    assignees = _summary_action_assignees(source)
+    if any(not re.search(rf"\b{re.escape(name)}\b", text, re.I) for name in assignees):
+        return None
     return text
+
+
+def _summary_source(prompt: str) -> str | None:
+    normalized = normalize(prompt).strip()
+    _instruction, sep, body = normalized.partition(":")
+    if not sep:
+        return None
+    body = body.strip()
+    if len(body) >= 2 and body[0] in {'"', "'"} and body[-1] == body[0]:
+        body = body[1:-1].strip()
+    return body if body else None
+
+
+def _summary_shape_matches(prompt: str, candidate: str) -> bool:
+    lowered = prompt.lower()
+    bullet_match = re.search(r"\b(?:in|into)\s+(\d+)\s+bullets?\b", lowered)
+    if bullet_match:
+        bullets = re.findall(r"(?m)^\s*[-*]\s+\S.+$", candidate)
+        if len(bullets) != int(bullet_match.group(1)):
+            return False
+    elif re.search(r"\b(?:one|1)\s+sentence\b", lowered):
+        if _sentence_count(candidate) != 1:
+            return False
+    elif re.search(r"\b(?:three|3)\s+sentences?\b", lowered):
+        if _sentence_count(candidate) != 3:
+            return False
+    if "action items" in lowered:
+        if not re.search(r"(?im)^\s*action\s+items\s*:\s*$", candidate):
+            return False
+    return True
+
+
+def _sentence_count(text: str) -> int:
+    if re.search(r"(?m)^\s*[-*]\s+", text):
+        return 0
+    pieces = re.findall(r"[^.!?]+[.!?](?=\s|$)|[^.!?]+$", text.strip())
+    return len([piece for piece in pieces if re.search(r"\w", piece)])
+
+
+def _number_facts(text: str) -> set[str]:
+    return {
+        match.replace(",", "").lower()
+        for match in re.findall(r"(?<!\w)\d[\d,]*(?:\.\d+)?%?", text)
+    }
+
+
+def _date_spans(text: str) -> list[str]:
+    month = MONTHS
+    return re.findall(
+        rf"\b(?:{month})\s+\d{{1,2}}(?:,\s*|\s+)\d{{4}}\b|"
+        rf"\b(?:{month})\s+\d{{4}}\b|\b\d{{4}}[-/]\d{{1,2}}[-/]\d{{1,2}}\b",
+        text,
+        re.I,
+    )
+
+
+_NAME_STOP = {
+    "a",
+    "an",
+    "the",
+    "this",
+    "that",
+    "it",
+    "summary",
+    "action",
+    "items",
+    "report",
+    "study",
+    "researchers",
+}
+
+
+def _proper_name_tokens(text: str, known: set[str] | None = None) -> set[str]:
+    known = known or set()
+    names: set[str] = set()
+    pattern = re.compile(r"\b(?:[A-Z]{3,}|[A-Z][a-z]{2,}|[A-Z][a-z]+[A-Z][A-Za-z]*)\b")
+    for match in pattern.finditer(text):
+        token = match.group(0)
+        lowered = token.casefold()
+        if lowered in _NAME_STOP:
+            continue
+        camel = bool(re.search(r"[a-z][A-Z]", token))
+        acronym = token.isupper()
+        prefix = text[: match.start()].rstrip()
+        sentence_initial = not prefix or prefix[-1] in ".!?"
+        if camel or acronym or not sentence_initial or lowered in known:
+            names.add(lowered)
+    return names
+
+
+def _summary_action_assignees(source: str) -> set[str]:
+    match = re.search(r"\baction\s+items\s*:\s*(.+)$", source, re.I | re.S)
+    if not match:
+        return set()
+    return {
+        name
+        for name in re.findall(r"\b([A-Z][A-Za-z'-]*)\s+will\b", match.group(1))
+    }
+
+
+def _raw_passage_copy(source: str, candidate: str) -> bool:
+    source_words = re.findall(r"[a-z0-9]+", source.lower())
+    candidate_words = re.findall(r"[a-z0-9]+", candidate.lower())
+    if not source_words or len(candidate_words) < int(len(source_words) * 0.85):
+        return False
+    source_set = set(source_words)
+    overlap = sum(word in source_set for word in candidate_words) / len(candidate_words)
+    return overlap >= 0.92
+
+
+_SUMMARY_STOP = {
+    "a", "an", "the", "of", "to", "in", "on", "at", "and", "or", "but", "for",
+    "with", "is", "are", "was", "were", "be", "been", "being", "this", "that", "it",
+    "its", "as", "by", "from", "which", "who", "their", "has", "have", "had", "will",
+    "would", "can", "could", "some", "other", "various",
+}
+
+
+def _fact_stem(word: str) -> str:
+    value = word.lower()
+    for suffix in ("ing", "ed", "es", "s"):
+        if len(value) > len(suffix) + 3 and value.endswith(suffix):
+            return value[: -len(suffix)]
+    return value
+
+
+def _content_terms(text: str) -> set[str]:
+    return {
+        _fact_stem(word)
+        for word in re.findall(r"[A-Za-z0-9]+", text)
+        if word.lower() not in _SUMMARY_STOP and len(word) > 2
+    }
+
+
+def _source_sentences_covered(source: str, candidate: str) -> bool:
+    got = _content_terms(candidate)
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", source) if part.strip()]
+    for sentence in sentences:
+        wanted = _content_terms(sentence)
+        if len(wanted) >= 4 and len(wanted & got) / len(wanted) < 0.4:
+            return False
+    return True
+
+
+def _summary_retry_prompt(prompt: str, candidate: str) -> str:
+    source = _summary_source(prompt) or ""
+    fact_source = source
+    forbidden: list[str] = []
+    if re.search(
+        r"\b(?:do\s+not|don't|without)\s+mention(?:ing)?\s+(?:the\s+)?date\b",
+        prompt,
+        re.I,
+    ):
+        forbidden = _date_spans(source)
+        for date in forbidden:
+            fact_source = fact_source.replace(date, " ")
+    missing_numbers = sorted(_number_facts(fact_source) - _number_facts(candidate))
+    source_names = _proper_name_tokens(fact_source)
+    missing_names = sorted(source_names - _proper_name_tokens(candidate, known=source_names))
+    missing_words = _missing_fact_words(fact_source, candidate)
+    missing = ", ".join(missing_numbers + missing_names + missing_words)
+    if not missing:
+        missing = "the key facts from each source sentence"
+    exclusion = ""
+    if forbidden:
+        exclusion = (
+            " Remove the forbidden date completely—do not output any part of: "
+            + ", ".join(forbidden)
+            + "."
+        )
+    return (
+        _local_prompt("summarization", prompt)
+        + "\nYour previous draft was rejected. Rewrite it once and literally include these missing "
+        + f"source facts: {missing}. Keep the required shape and introduce nothing new.{exclusion}\n"
+        + f"PREVIOUS DRAFT:\n{candidate.strip()}"
+    )
+
+
+def _missing_fact_words(source: str, candidate: str) -> list[str]:
+    candidate_terms = _content_terms(candidate)
+    missing: list[str] = []
+    seen: set[str] = set()
+    for word in re.findall(r"[A-Za-z]+", source):
+        lowered = word.lower()
+        stem = _fact_stem(lowered)
+        if lowered in _SUMMARY_STOP or len(lowered) <= 2 or stem in candidate_terms or stem in seen:
+            continue
+        seen.add(stem)
+        missing.append(word)
+        if len(missing) >= 24:
+            break
+    return missing
 
 
 def _accept_ner(prompt: str, candidate: str) -> str | None:
@@ -553,12 +851,17 @@ def _self_check() -> None:
     assert rejected is None
 
     # summarization accept-gate: clean English summary passes; code/[brackets]/empty/over-limit defer
-    assert _accept_summary("Summarize in one sentence:", "A solar eclipse happens at new moon when the Moon blocks the Sun.")
+    assert _accept_summary(
+        "Summarize in one sentence: A solar eclipse happens when the Moon blocks the Sun.",
+        "At new moon, the Moon blocks the Sun in a solar eclipse.",
+    )
     assert _accept_summary("Summarize", "```python\nprint(1)\n```") is None
     assert _accept_summary("Summarize", "See [placeholder] for details here.") is None
     assert _accept_summary("Summarize", "") is None
     assert _accept_summary("Summarize in under 5 words", "This summary is clearly far too long") is None
-    assert _local_max_tokens("summarization", {}) == 220
+    assert _local_max_tokens("summarization", {}, "Summarize in one sentence: x") == 64
+    assert _local_max_tokens("summarization", {}, "Create a report in three sentences: x") == 110
+    assert _local_max_tokens("summarization", {}, "Summarize in five bullets: x") == 150
     assert _local_max_tokens("actual_qa", {"max_tokens": 48}) == 48
 
 

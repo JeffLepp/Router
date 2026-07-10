@@ -10,12 +10,22 @@ model_paths:
 llama:
   base_url: "http://127.0.0.1:8080/v1"
   model: "local"
+  system_prompt: ""
 local_candidate:
   enabled: false
   self_consistency_k: 2
   temp: 0
   max_tokens: 64
-  latency_cap_s: 4
+  latency_cap_s: 35
+  summary_queue_size: 1
+  summary_retries: 1
+  summary_task_timeout_s: 35
+  summary_stage_timeout_s: 240
+  summary_max_tokens:
+    one_sentence: 64
+    three_sentences: 110
+    structured_report: 150
+    default: 150
   categories:
     actual_qa: false
     math_reasoning: false
@@ -30,6 +40,8 @@ batching:
   # and the per-category contract are paid once instead of once per task. Lines that fail
   # validation are re-run individually, so a bad parse costs the un-batched price, not the task.
   enabled: true
+  # Requires repeated paid A/B evidence (zero pass→fail and >=145 actual tokens saved).
+  code_enabled: false
   max_batch_size: 10
 remote:
   timeout_seconds: 25

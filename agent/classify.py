@@ -64,6 +64,15 @@ _SUMMARY_LEAD = re.compile(
     r"(?:create|write|give)(?:\s+\w+){0,3}\s+(?:executive\s+)?summary)\b",
     re.I,
 )
+# A command can name a code artifact "summary" without asking to summarize source content.
+# Keep this narrow and start-anchored so code words inside the passage of a real summary do
+# not steal the request (for example, a meeting report that discusses a broken function).
+_SUMMARY_CODE_ARTIFACT = re.compile(
+    r"^\s*(?:please\s+)?(?:write|implement|create|design)\b[^.?!:\n]{0,100}\b(?:"
+    r"summary\s+(?:function|method|class|query|script|code)\b|"
+    r"summary\s+table\b[^.?!:\n]{0,40}\b(?:sql|database|schema)\b)",
+    re.I,
+)
 # Strong signals name the task or carry review-only polarity; safe to trust anywhere.
 _SENTIMENT_STRONG = re.compile(
     r"\b(sentiment|positive|negative|neutral|classify.*review|label.*tone|"
@@ -132,6 +141,8 @@ async def classify(prompt: str, local_tiebreaker: object | None = None) -> Class
     text = prompt.strip()
     lower = text.lower()
 
+    if _SUMMARY_CODE_ARTIFACT.search(text):
+        return Classification("code_generation", 0.84, "summary-named code artifact")
     if _SUMMARY_LEAD.match(text):
         return Classification("summarization", 0.92, "leading summarize imperative")
     if _CODE_HINTS.search(text):
@@ -179,6 +190,11 @@ def _self_check() -> None:
         == "summarization"
     assert cat("Create an executive summary of this report in three sentences: 'Costs fell.'") \
         == "summarization"
+    assert cat("Write a summary of this Python function in two sentences: def f(): return 1") \
+        == "summarization"
+    # A code artifact named "summary" is still code generation, not summarization.
+    assert cat("Write a summary function in Python") == "code_generation"
+    assert cat("Create a summary table in SQL") == "code_generation"
     # ...but a real debug task that merely mentions a summary stays code_debugging.
     assert cat("Fix the bug in this function:\n```python\ndef f(): return summary\n```") \
         == "code_debugging"
