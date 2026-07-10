@@ -1,52 +1,29 @@
 # syntax=docker/dockerfile:1
-# Floor-CL router image. One image, two modes: local_candidate.enabled flips
-# Floor-C (Tier 1.5 off) <-> Floor-CL (Tier 1.5 on) at runtime, no rebuild.
-# Target: linux/amd64, < 10GB compressed (3B Q4 GGUF ~2GB).
+# Floor-C router image: deterministic gate + Fireworks, no local model.
+#
+# The 1.5B local model was measured and removed (2026-07-09, see HANDOFF.md). On the 2 vCPU
+# grader it absorbed only actual_qa and sentiment_analysis, and got every one of them wrong --
+# a knowledge-free model cannot RECALL facts, only TRANSFORM given text. Local summarization,
+# the one thing it did well, ran 5-60s/task and broke the 30s/request cap. Dropping the GGUF
+# and llama-server takes ~1.2GB off the image and removes the llama warm-up from cold start.
+# To restore it: re-add the two build stages below from git history and flip
+# local_candidate.enabled in the config; agent/local_gate.py is unchanged and still self-checks.
+#
+# Target: linux/amd64, << 10GB compressed, ready < 60s.
 
-# ---- Stage 1: build llama-server (CPU/AVX2, never ROCm/CUDA/Vulkan) ----
-FROM debian:bookworm-slim AS build
-ARG LLAMA_REF=b4000
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      git cmake build-essential libcurl4-openssl-dev ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 --branch ${LLAMA_REF} https://github.com/ggml-org/llama.cpp /src \
-    || git clone --depth 1 https://github.com/ggml-org/llama.cpp /src
-WORKDIR /src
-# AVX2 is default for x86-64 CPU backend. CUDA/ROCm/Vulkan stay OFF.
-RUN cmake -B build -DGGML_VULKAN=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release \
-    && cmake --build build --target llama-server -j "$(nproc)"
-
-# ---- Stage 2: fetch the baked GGUF ----
-FROM debian:bookworm-slim AS model
-ARG MODEL_GGUF_URL=https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-RUN curl -fSL "${MODEL_GGUF_URL}" -o /model.gguf
-
-# ---- Stage 3: runtime ----
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 python3-pip libgomp1 ca-certificates \
+      python3 python3-pip ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
-COPY --from=build /src/build/bin/llama-server /usr/local/bin/llama-server
-COPY --from=build /src/build/src/libllama.so /usr/local/lib/
-COPY --from=build /src/build/ggml/src/libggml.so /usr/local/lib/
-COPY --from=model /model.gguf /models/model.gguf
 COPY agent/ /app/agent/
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-ENV MODEL_GGUF=/models/model.gguf \
-    LD_LIBRARY_PATH=/usr/local/lib \
-    LLAMA_PORT=8080 \
-    LLAMA_CTX_SIZE=512 \
-    LLAMA_THREADS=2 \
-    LLAMA_STARTUP_WAIT_S=10 \
-    INPUT_PATH=/input/tasks.json \
+ENV INPUT_PATH=/input/tasks.json \
     OUTPUT_PATH=/output/results.json \
     PYTHONUNBUFFERED=1
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
