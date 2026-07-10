@@ -56,6 +56,14 @@ _SUMMARY_HINTS = re.compile(
     r"one sentence|executive summary)\b",
     re.I,
 )
+# A leading summarize imperative wins over body keywords. Without this, a meeting summary
+# whose *content* mentions a "bug" in an "authentication module" (summary_005) is stolen by
+# _CODE_HINTS, which is tested first, and gets the code_debugging contract + code model.
+_SUMMARY_LEAD = re.compile(
+    r"^\s*(?:please\s+)?(?:summari[sz]e|condense|tl;?dr|"
+    r"(?:create|write|give)(?:\s+\w+){0,3}\s+(?:executive\s+)?summary)\b",
+    re.I,
+)
 # Strong signals name the task or carry review-only polarity; safe to trust anywhere.
 _SENTIMENT_STRONG = re.compile(
     r"\b(sentiment|positive|negative|neutral|classify.*review|label.*tone|"
@@ -124,6 +132,8 @@ async def classify(prompt: str, local_tiebreaker: object | None = None) -> Class
     text = prompt.strip()
     lower = text.lower()
 
+    if _SUMMARY_LEAD.match(text):
+        return Classification("summarization", 0.92, "leading summarize imperative")
     if _CODE_HINTS.search(text):
         is_gen = bool(_CODE_GEN_HINTS.search(text)) or "write code" in lower
         # bare "error" alone shouldn't force debug — a generation task can mention "raising an error"
@@ -164,6 +174,14 @@ def _self_check() -> None:
     assert cat("How many moons does the planet Kepler-452b have?") == "actual_qa"
     assert cat("If you have 12 apples and give away 5, how many are left?") == "math_reasoning"
     assert cat("Jane bought 3 books at $12 each. How much did she spend in total?") == "math_reasoning"
+    # A leading summarize imperative beats code keywords in the body (summary_005).
+    assert cat("Summarize this meeting in five bullets: 'Karen found a bug in the auth module.'") \
+        == "summarization"
+    assert cat("Create an executive summary of this report in three sentences: 'Costs fell.'") \
+        == "summarization"
+    # ...but a real debug task that merely mentions a summary stays code_debugging.
+    assert cat("Fix the bug in this function:\n```python\ndef f(): return summary\n```") \
+        == "code_debugging"
     print("PASS classify self-check")
 
 

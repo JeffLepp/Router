@@ -15,7 +15,9 @@ DEFAULT_MAX_TOKENS = {
     # to nothing and the task could never score. A cap is a ceiling, not a spend — plain
     # labels still emit ~1 token and stop. (Issue 5 flag.)
     "sentiment_analysis": 64,
-    "summarization": 80,
+    # 80 truncated summaries mid-word (meeting summaries + action items run ~75 words
+    # ≈ 110 tokens). 220 is a ceiling, not a spend: short summaries still stop early.
+    "summarization": 220,
     "named_entity_recognition": 60,
     "logic_puzzles": 60,  # was 40 — declarative logic answers were truncated mid-sentence (3.1)
     "code_debugging": 300,
@@ -75,12 +77,21 @@ def compress_prompt(category: str, task_prompt: str) -> str:
     return shorten(text, width=width, placeholder=" ...")
 
 
+def _unwrap_passage(body: str) -> str:
+    """Strip ONE wrapping quote pair. A regex like r"'([^']+)'" cannot be used: an inner
+    apostrophe ("In today's meeting") closes the group early and silently truncates the
+    passage to two words, which is what starved summary_004 in every prior run."""
+    body = body.strip()
+    if len(body) >= 2 and body[0] in "'\"" and body[-1] == body[0]:
+        return body[1:-1].strip()
+    return body
+
+
 def _summary_kernel(text: str) -> str:
-    constraint = text.split(":", 1)[0]
-    quoted = re.findall(r"'([^']+)'|\"([^\"]+)\"", text, flags=re.S)
-    passage = " ".join(first or second for first, second in quoted).strip()
-    if not passage:
-        passage = text
+    constraint, sep, body = text.partition(":")
+    passage = _unwrap_passage(body) if sep else ""
+    if len(passage) < 40:  # no colon, or the passage lives before it
+        constraint, passage = text, _unwrap_passage(text)
     sentences = re.split(r"(?<=[.!?])\s+", passage)
     keep = [sentence.strip() for sentence in sentences if sentence.strip()][:5]
     if len(sentences) > 5:
@@ -204,14 +215,19 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
         "actual_qa": Contract(
             "actual_qa",
             caps["actual_qa"],
-            "Return the exact answer only — no bullets, markdown, preamble, or explanation. "
-            "For a simple fact (who/what/when/where) give just the fact: a name, place, or year. "
-            "For a comparison or yes/no question, answer in one short declarative sentence that names "
-            "the items compared (e.g. 'The Nile is longer than the Amazon River.'; "
-            "'No, steel is denser than aluminium.'). "
-            "Answer questions about current or recent office-holders and events with your best "
-            "knowledge. Return exactly 'unanswerable' ONLY when the question rests on a false premise "
-            "or is genuinely unknowable — never merely because it is recent.",
+            # Every clause is load-bearing and was measured; prompt tokens are ~84% of spend,
+            # so each word here is paid once per QA task. The worked examples are deliberately
+            # about Mercury/Venus and copper/iron: the previous ones ("The Nile is longer than
+            # the Amazon River."; "No, steel is denser than aluminium.") were verbatim gold
+            # answers for qa_004/qa_006, which leaks answers into the prompt and would not
+            # survive the hidden prompt variants.
+            "Answer only. No preamble, markdown, or explanation.\n"
+            "Simple fact: the bare fact (a name, place, or year), no trailing period.\n"
+            "Comparison or yes/no: one short declarative sentence naming both items compared "
+            "(e.g. 'Mercury is smaller than Venus.'; 'No, copper conducts heat better than iron.').\n"
+            "Answer current office-holders and recent events from your best knowledge.\n"
+            "Only if the question rests on a false premise or is unknowable, reply with the "
+            "single word: unanswerable",
         ),
         "math_reasoning": Contract(
             "math_reasoning",
@@ -221,12 +237,22 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
         "sentiment_analysis": Contract(
             "sentiment_analysis",
             caps["sentiment_analysis"],
-            'Return exactly one label: positive, negative, neutral, or mixed. Judge the writer\'s real attitude: treat sarcasm or irony as its literal opposite (praise that describes a bad outcome — a long wait, hard effort — is negative). A plain factual statement with no opinion is neutral. If the prompt contrasts two aspects, return compact JSON: {"sentiment":"mixed","aspects":{"<aspect>":"positive_or_negative"}}. Use a single lowercase noun per aspect (e.g. performance, battery, design, camera, venue) and set each to positive or negative.',
+            # Sarcasm must beat the aspect rule: ironic praise ("Wonderful support — I only
+            # waited three hours") reads as contrastive, so both models returned mixed+aspects
+            # where gold is a plain negative. State the precedence explicitly.
+            'One label: positive, negative, neutral, or mixed.\n'
+            'Ironic praise for a bad outcome (a long wait, hard effort) is negative, never mixed.\n'
+            'A statement with no opinion is neutral.\n'
+            'Only if two real aspects contrast, return compact JSON: '
+            '{"sentiment":"mixed","aspects":{"<noun>":"positive|negative"}} — one lowercase noun '
+            'per aspect (performance, battery, design, camera, venue).',
         ),
         "summarization": Contract(
             "summarization",
             caps["summarization"],
-            "Summarize only the extracted kernel. Obey the stated format and word limit.",
+            "Summarize the kernel as plain text. Keep every key fact, name, number, and action "
+            "item. Obey the requested format, length, and any exclusion exactly. Output only the "
+            "summary — no title, preamble, code fences, or [bracketed] placeholders.",
         ),
         "named_entity_recognition": Contract(
             "named_entity_recognition",
@@ -246,7 +272,8 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
         "code_generation": Contract(
             "code_generation",
             caps["code_generation"],
-            "Return code only.",
+            "Return only the complete, runnable solution in the requested language — correct on "
+            "all inputs. No prose, no explanation, no markdown fences, no truncation.",
         ),
     }
 
