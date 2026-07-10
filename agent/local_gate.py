@@ -23,7 +23,10 @@ from agent.solvers.sentiment_solve import solve as lexicon_sentiment
 from agent.verify import code_v, format_v, logic_v, math_v
 
 
-_SKIP_WITHOUT_GENERATION = {"summarization"}
+# Categories that skip local generation entirely (no reliable accept-gate). Summarization now
+# has _accept_summary, so it is no longer skipped here — but it stays OFF via config until its
+# quality/latency on the 1.5B is confirmed by measurement (config.track2.yaml summarization:false).
+_SKIP_WITHOUT_GENERATION: set[str] = set()
 _LABELS = {"positive", "negative", "neutral", "mixed"}
 _ORDER_NAME = r"[A-Z][A-Za-z0-9_]*"
 _MONEY_RE = re.compile(r"^\$\d[\d,]*(?:\.\d+)?(?:\s+(?:million|billion|thousand))?$", re.I)
@@ -96,6 +99,8 @@ async def try_local(
         return _accept_factual(prompt, result.samples, cfg, classification_confidence, k)
     if local_category == "sentiment_analysis":
         return _accept_sentiment(prompt, result.samples, k)
+    if local_category == "summarization":
+        return _accept_summary(prompt, result.text)
     return None
 
 
@@ -206,7 +211,7 @@ async def _call_generate(
             category=category,
             k=k,
             temperature=float(cfg.get("temp", 0) or 0),
-            max_tokens=int(cfg.get("max_tokens", 64) or 64),
+            max_tokens=_local_max_tokens(category, cfg),
             timeout=timeout,
         )
     except TypeError:
@@ -225,9 +230,17 @@ def _local_prompt(category: str, prompt: str) -> str:
         "code_debugging": "Return corrected Python code only.",
         "code_generation": "Return Python code only.",
         "logic_puzzles": "Return the final assignment or ordering only.",
+        "summarization": "Summarize the text. Keep the key facts and any action items. Obey the requested format and length. Output only the summary.",
         "formatting": "Return only the requested formatted answer.",
     }
     return f"{instructions.get(category, 'Return the final answer only')}\nTASK:\n{prompt.strip()}"
+
+
+def _local_max_tokens(category: str, cfg: dict[str, Any]) -> int:
+    # Summaries need room (~150-220 tok); short categories stay small to keep 2-vCPU latency low.
+    if category == "summarization":
+        return int(cfg.get("summary_max_tokens", 220) or 220)
+    return int(cfg.get("max_tokens", 64) or 64)
 
 
 def _accept_math(prompt: str, candidate: str) -> str | None:
@@ -309,6 +322,27 @@ def _accept_format(prompt: str, candidate: str) -> str | None:
     if match and not format_v.within_word_limit(candidate, int(match.group(1))):
         return None
     return candidate.strip() if candidate.strip() and format_v.englishish(candidate) else None
+
+
+def _accept_summary(prompt: str, candidate: str) -> str | None:
+    """Precision-safe local summary gate: accept only a clean, correctly-sized English
+    summary; anything doubtful defers to Fireworks (accuracy-first). Dormant until config
+    enables summarization (config.track2.yaml) and its 1.5B latency is validated on Docker."""
+    text = candidate.strip()
+    if not text or not format_v.englishish(text):
+        return None
+    if "```" in text or re.search(r"\[[^\]]*\]", text):  # code fences / [placeholder] artifacts
+        return None
+    lowered = prompt.lower()
+    match = re.search(
+        r"(?:under|at most|no more than|within|fewer than|less than)\s+(\d+)\s+words?", lowered
+    )
+    if match and not format_v.within_word_limit(text, int(match.group(1))):
+        return None
+    words = format_v.word_count(text)
+    if words < 3 or words > 200:
+        return None
+    return text
 
 
 def _accept_ner(prompt: str, candidate: str) -> str | None:
@@ -517,6 +551,15 @@ def _self_check() -> None:
         try_local("math_reasoning", "Calculate 2 + 3.", cfg, client=StaticClient("6"))
     )
     assert rejected is None
+
+    # summarization accept-gate: clean English summary passes; code/[brackets]/empty/over-limit defer
+    assert _accept_summary("Summarize in one sentence:", "A solar eclipse happens at new moon when the Moon blocks the Sun.")
+    assert _accept_summary("Summarize", "```python\nprint(1)\n```") is None
+    assert _accept_summary("Summarize", "See [placeholder] for details here.") is None
+    assert _accept_summary("Summarize", "") is None
+    assert _accept_summary("Summarize in under 5 words", "This summary is clearly far too long") is None
+    assert _local_max_tokens("summarization", {}) == 220
+    assert _local_max_tokens("actual_qa", {"max_tokens": 48}) == 48
 
 
 if __name__ == "__main__":

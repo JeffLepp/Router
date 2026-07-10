@@ -24,15 +24,23 @@ FAMILY_PRIOR = {
     "gpt-oss": 8,
 }
 REASONING_RE = re.compile(r"\b(r1|reason|thinking|think|qwq)\b", re.I)
+# Measured on Fireworks 2026-07-09 with a 1-token user message: minimax-m3 bills 119
+# prompt tokens before we send a single word (a provider-side chat template), kimi-k2p7-code
+# bills 24. That ~95-token surcharge is paid on EVERY call, so it dominates short-answer
+# categories. Keep minimax only where world knowledge or nuance actually earns it back:
+#   actual_qa   - kimi answered "unanswerable" for a knowable question (qa_007); minimax knew it.
+#   sentiment   - minimax 4/5 vs kimi 3/5 on the non-gate tasks.
+# Transformation categories (summarize/extract/deduce) read from the prompt, so they take the
+# cheap model. Patterns are an ordered preference; unmatched families fall through to rank_models.
 CATEGORY_MODEL_PATTERNS = {
     "code_debugging": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
     "code_generation": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
     "sentiment_analysis": (r"gemma.*26.*it", r"gemma.*31.*nvfp4", r"minimax"),
     "math_reasoning": (r"minimax", r"gemma.*31.*it", r"gemma.*26.*it"),
-    "logic_puzzles": (r"minimax", r"gemma.*31.*it", r"gemma.*31.*nvfp4"),
+    "logic_puzzles": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
     "actual_qa": (r"minimax", r"gemma.*31.*it", r"gemma.*31.*nvfp4"),
-    "summarization": (r"minimax", r"gemma.*31.*it", r"gemma.*31.*nvfp4"),
-    "named_entity_recognition": (r"gemma.*31.*it", r"minimax", r"gemma.*26.*it"),
+    "summarization": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
+    "named_entity_recognition": (r"gemma.*31.*it", r"kimi.*code", r"minimax"),
 }
 
 
@@ -323,6 +331,13 @@ def _self_check() -> None:
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
     assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
     assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
+    # Knowledge stays on minimax; transformations take the low-overhead model.
+    two = ["minimax-m3", "kimi-k2p7-code"]
+    assert choose_model_for_category("actual_qa", two) == "minimax-m3"
+    assert choose_model_for_category("sentiment_analysis", two) == "minimax-m3"
+    assert choose_model_for_category("summarization", two) == "kimi-k2p7-code"
+    assert choose_model_for_category("logic_puzzles", two) == "kimi-k2p7-code"
+    assert choose_model_for_category("named_entity_recognition", two) == "kimi-k2p7-code"
     assert _param_count("gemma-4-26b-a4b-it") == 4.0
     assert _param_count("gemma-4-31b-it") == 31.0
     assert _param_count("mixtral-8x7b-instruct") == 7.0

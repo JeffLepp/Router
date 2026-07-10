@@ -26,7 +26,10 @@ local_candidate:
     logic_puzzles: false
     code_generation: false
 batching:
-  enabled: false
+  # Folds actual_qa/sentiment/ner into one request each, so minimax's ~119-token chat template
+  # and the per-category contract are paid once instead of once per task. Lines that fail
+  # validation are re-run individually, so a bad parse costs the un-batched price, not the task.
+  enabled: true
   max_batch_size: 10
 remote:
   timeout_seconds: 25
@@ -38,7 +41,7 @@ max_tokens:
   actual_qa: 40
   math_reasoning: 10
   sentiment_analysis: 80
-  summarization: 80
+  summarization: 220
   named_entity_recognition: 60
   code_debugging: 300
   logic_puzzles: 40

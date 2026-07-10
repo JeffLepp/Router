@@ -257,6 +257,29 @@ async def _gate_proven_ids(tasks: list[dict[str, Any]]) -> set[str]:
     return proven
 
 
+def _ledger_by_task(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Index ledger entries by real task_id, splitting batched entries across their members.
+
+    A batched call is logged once as `batch:qa_001,qa_002,...`. Left unexpanded it counts as a
+    single phantom "task" in remote_ids (inflating remote, deflating local/other) and its tokens
+    vanish from the per-category table, because no task matches that id.
+    """
+    by_task: dict[str, dict[str, Any]] = {}
+    token_keys = ("total_tokens", "prompt_tokens", "completion_tokens")
+    for entry in entries:
+        task_id = str(entry.get("task_id", ""))
+        if not task_id.startswith("batch:"):
+            by_task[task_id] = entry
+            continue
+        members = [m for m in task_id.split(":", 1)[1].split(",") if m]
+        if not members:
+            continue
+        for member in members:
+            shared = {key: int(entry.get(key, 0) or 0) // len(members) for key in token_keys}
+            by_task[member] = {**entry, "task_id": member, **shared}
+    return by_task
+
+
 def _route_of(task_id: str, gate_ids: set[str], remote_ids: set[str]) -> str:
     if task_id in gate_ids:
         return "gate"
@@ -287,7 +310,7 @@ def _score(
     from eval.score import score_task
 
     by_result = {str(row.get("task_id")): str(row.get("answer", "")) for row in results}
-    ledger_by_task = {str(e.get("task_id")): e for e in ledger.get("entries", [])}
+    ledger_by_task = _ledger_by_task(ledger.get("entries", []))
     remote_ids = set(ledger_by_task)
     per_category: dict[str, Counter[str]] = defaultdict(Counter)
     failures: list[dict[str, Any]] = []

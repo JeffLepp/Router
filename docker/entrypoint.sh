@@ -1,6 +1,10 @@
 #!/bin/sh
 # Start llama-server only when Tier 1.5 is enabled (Floor-CL); otherwise skip
 # it for a faster cold start (Floor-C). Then exec the router.
+#
+# The shipped image is Floor-C and bundles NO llama-server and NO GGUF (see Dockerfile).
+# The block below is kept so re-adding the model stages is a one-line config flip; it degrades
+# to a warning if the config asks for a local model that is not in the image.
 set -e
 
 CONFIG="${CONFIG_PATH:-/app/agent/config.yaml}"
@@ -29,6 +33,9 @@ esac
 
 if [ "$FORCE_STUB" = "1" ]; then
   echo "entrypoint: local stub forced, llama-server skipped" >&2
+elif [ "$START_LLAMA" = "1" ] && ! command -v llama-server >/dev/null 2>&1; then
+  echo "entrypoint: config enables a local model but this image bundles none;" >&2
+  echo "entrypoint: continuing remote-only (the accept-gates defer to Fireworks)" >&2
 elif [ "$START_LLAMA" = "1" ]; then
   echo "entrypoint: Floor-CL, starting llama-server" >&2
   GPU_ARGS=""
