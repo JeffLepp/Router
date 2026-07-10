@@ -204,8 +204,21 @@ async def _run_remote(
         timeout = min(float(config.remote.get("timeout_seconds", 25)), max(0.5, remaining))
         return await asyncio.wait_for(client.complete(call), timeout=timeout)
 
+    async def safe_complete(call: Any) -> str:
+        """Semaphore-bounded, never-raising. The batching path gathers over calls, and one
+        escaped exception there would unwind into run_agent's handler and blank every answer."""
+        async with semaphore:
+            try:
+                return await complete_one(call)
+            except Exception as exc:
+                print(f"remote_error task_id={call.task_id} error={exc}", file=sys.stderr)
+                return ""
+
     async def write_payload(task_id: str, payload: str) -> None:
         state = by_id[task_id]
+        if not payload:
+            state.confidence = min(state.confidence, 0.4)
+            return
         state.answer = contracts[state.category].assemble(state.task.prompt, payload)
         state.confidence = max(state.confidence, 0.75)
         state.source = "remote"
@@ -228,8 +241,8 @@ async def _run_remote(
         batcher = importlib.import_module("agent.batcher")
         payloads, saved = await batcher.complete_with_batching(
             selected,
-            complete_one=complete_one,
-            complete_batch=complete_one,
+            complete_one=safe_complete,
+            complete_batch=safe_complete,
             max_batch_size=int(batching.get("max_batch_size", 10) or 10),
         )
         for task_id, payload in payloads.items():
