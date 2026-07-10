@@ -85,31 +85,52 @@ def _remote_verdict(rubric: str, content: str) -> bool:
 
     base = os.environ["FIREWORKS_BASE_URL"].rstrip("/")
     key = os.environ["FIREWORKS_API_KEY"]
-    model = (os.environ.get("ALLOWED_MODELS", "").split(",") or ["accounts/fireworks/models/llama-v3p1-8b-instruct"])[0].strip()
+    # Judge model (own key, off the competition path). EVAL_JUDGE_MODEL lets you point at a cheap
+    # INSTRUCT model; default = first ALLOWED_MODELS entry. A *reasoning* model (e.g. minimax) must
+    # finish thinking before it can emit the verdict, so max_tokens=4 made it ALWAYS return no
+    # verdict -> every summary scored 0. Give it room and parse the verdict robustly.
+    model = os.environ.get("EVAL_JUDGE_MODEL") or (
+        os.environ.get("ALLOWED_MODELS", "").split(",")
+        or ["accounts/fireworks/models/llama-v3p1-8b-instruct"]
+    )[0].strip()
+    max_toks = int(os.environ.get("EVAL_JUDGE_MAX_TOKENS", "512") or "512")
     resp = httpx.post(
         f"{base}/chat/completions",
         headers={"Authorization": f"Bearer {key}"},
         json={
             "model": model,
             "temperature": 0,
-            "max_tokens": 4,
+            "max_tokens": max_toks,
             "messages": [
                 {"role": "system", "content": rubric},
                 {"role": "user", "content": content},
             ],
         },
-        timeout=30,
+        timeout=60,
     )
     resp.raise_for_status()
-    verdict = resp.json()["choices"][0]["message"]["content"].strip().upper()
-    return verdict.startswith("PASS")
+    text = resp.json()["choices"][0]["message"].get("content") or ""
+    # Strip reasoning wrappers (possibly truncated) before reading the verdict.
+    text = re.sub(r"(?is)<think>.*?</think>", " ", text)
+    text = re.sub(r"(?is)<think>.*", " ", text)
+    upper = text.upper()
+    last_pass, last_fail = upper.rfind("PASS"), upper.rfind("FAIL")
+    if last_pass == -1 and last_fail == -1:
+        return False  # no verdict emitted -> conservative fail
+    return last_pass > last_fail
 
 
 def _remote_judge(prompt: str, answer: Any, expected: Any, method: str) -> bool:
+    # Intent-scoring rubric: the competition judge grades whether the summary captures the
+    # gist, not word-for-word coverage. The old "every essential point" wording under-counted
+    # good paraphrases and made summarization read as ~0. This is measurement-only (own key,
+    # off the competition token path) and never affects the shipped agent's output.
     rubric = (
-        "You are a strict grader. Reply with exactly PASS or FAIL. "
-        "PASS only if the candidate summary conveys every essential point of the reference "
-        "and adds no factual errors."
+        "You are grading a summary for intent. Reply with exactly PASS or FAIL. "
+        "PASS if the candidate captures the main idea and the key facts of the reference and "
+        "introduces no significant factual errors; reasonable paraphrasing and omission of "
+        "minor details are fine. FAIL only if it misses the main point, is unrelated, empty, "
+        "or contradicts the reference."
     )
     content = (
         f"REFERENCE:\n{json.dumps(_expected_texts(expected))}\n\n"
