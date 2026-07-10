@@ -30,9 +30,11 @@ class ScriptedClient:
         self.answers = list(answers)
         self.delay_s = delay_s
         self.calls = 0
+        self.kwargs: list[dict[str, Any]] = []
 
     async def generate(self, prompt: str, **kwargs: Any) -> LocalResult:
         self.calls += 1
+        self.kwargs.append(dict(kwargs))
         if self.delay_s:
             await asyncio.sleep(self.delay_s)
         k = int(kwargs.get("k", 1) or 1)
@@ -61,6 +63,13 @@ def local_config(*enabled_categories: str, enabled: bool = True, cap: float = 1.
         "temp": 0,
         "max_tokens": 64,
         "latency_cap_s": cap,
+        "summary_max_tokens": {
+            "one_sentence": 64,
+            "three_sentences": 110,
+            "structured_report": 150,
+            "default": 150,
+        },
+        "summary_retries": 1,
         "min_classifier_confidence": 0.5,
     }
 
@@ -200,6 +209,46 @@ def test_accept_reject_set() -> None:
             ['{"answer":"ok"}'],
             True,
         ),
+        (
+            "summary accept preserved facts",
+            "summarization",
+            "Summarize in one sentence: The Apollo mission carried 3 astronauts to the Moon "
+            "and returned them safely to Earth after completing its goals.",
+            ["Apollo carried 3 astronauts to the Moon, completed its goals, and returned safely to Earth."],
+            True,
+        ),
+        (
+            "summary reject missing number",
+            "summarization",
+            "Summarize in one sentence: The Apollo mission carried 3 astronauts to the Moon "
+            "and returned them safely to Earth.",
+            ["Apollo carried astronauts to the Moon and returned them safely to Earth."],
+            False,
+        ),
+        (
+            "summary reject hallucinated name",
+            "summarization",
+            "Summarize in one sentence: The Apollo mission carried 3 astronauts to the Moon "
+            "and returned them safely to Earth.",
+            ["NASA's Apollo carried 3 astronauts to the Moon and returned them safely to Earth."],
+            False,
+        ),
+        (
+            "summary accept date exclusion",
+            "summarization",
+            "Summarize but do not mention the date: On March 14, 2026, SpaceX launched "
+            "Starship with 4 astronauts to lunar orbit and returned them to Earth.",
+            ["SpaceX launched Starship with 4 astronauts to lunar orbit and returned them to Earth."],
+            True,
+        ),
+        (
+            "summary reject excluded date",
+            "summarization",
+            "Summarize but do not mention the date: On March 14, 2026, SpaceX launched "
+            "Starship with 4 astronauts to lunar orbit and returned them to Earth.",
+            ["On March 14, 2026, SpaceX launched Starship with 4 astronauts to lunar orbit and returned them to Earth."],
+            False,
+        ),
     ]
     accepted = 0
     rejected = 0
@@ -247,6 +296,18 @@ def test_disabled_and_no_generation_paths() -> None:
     )
     assert no_tests is None
     assert no_tests_client.calls == 0
+    conclusion_client = ScriptedClient("A fluent but unsafe conclusion summary.")
+    conclusion = run(
+        try_local(
+            "summarization",
+            "Summarize without mentioning its main conclusion: The council approved a project. "
+            "It may create jobs.",
+            config=local_config("summarization"),
+            client=conclusion_client,
+        )
+    )
+    assert conclusion is None
+    assert conclusion_client.calls == 0
     print("PASS disabled and code-without-tests no-generation paths")
 
 
@@ -291,12 +352,40 @@ def test_latency_cap() -> None:
     print(f"PASS latency cap elapsed={elapsed:.2f}s")
 
 
+def test_summary_output_caps() -> None:
+    one = ScriptedClient("Green plants make food with sunlight and give off oxygen.")
+    assert run(
+        try_local(
+            "summarization",
+            "Summarize in one sentence: Green plants use sunlight to make food and release oxygen.",
+            config=local_config("summarization"),
+            client=one,
+        )
+    )
+    assert one.kwargs[0]["max_tokens"] == 64
+
+    three = ScriptedClient(
+        "Commuting fell because of remote work. Cities saw more cycling. More bike lanes are needed by planners."
+    )
+    assert run(
+        try_local(
+            "summarization",
+            "Create a summary in three sentences: Remote work reduced commuting. Cycling increased "
+            "across cities. Planners need more bike lanes.",
+            config=local_config("summarization"),
+            client=three,
+        )
+    )
+    assert three.kwargs[0]["max_tokens"] == 110
+    print("PASS summary shape-specific output caps")
+
+
 def write_pipeline_config(path: Path, local_enabled: bool) -> None:
     categories = {
-        "actual_qa": local_enabled,
+        "actual_qa": False,
         "math_reasoning": False,
         "sentiment_analysis": False,
-        "summarization": False,
+        "summarization": local_enabled,
         "named_entity_recognition": False,
         "code_debugging": False,
         "logic_puzzles": False,
@@ -318,6 +407,14 @@ def write_pipeline_config(path: Path, local_enabled: bool) -> None:
         "  temp: 0",
         "  max_tokens: 64",
         "  latency_cap_s: 1",
+        "  summary_queue_size: 1",
+        "  summary_retries: 1",
+        "  summary_stage_timeout_s: 10",
+        "  summary_max_tokens:",
+        "    one_sentence: 64",
+        "    three_sentences: 110",
+        "    structured_report: 150",
+        "    default: 150",
         "  min_classifier_confidence: 0.5",
         "  categories:",
     ]
@@ -348,13 +445,22 @@ def write_pipeline_config(path: Path, local_enabled: bool) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def test_pipeline_stub_token_drop() -> None:
+def test_pipeline_summary_queue_token_drop() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         port = free_port()
         server = start_mock(port)
         try:
-            tasks = fake_tasks(150)
+            summary_prompt = (
+                "Summarize in one sentence: The Apollo mission carried 3 astronauts to the Moon "
+                "and returned them safely to Earth after completing its goals."
+            )
+            tasks = [
+                {"task_id": f"s{i:03d}", "prompt": summary_prompt}
+                if i % 2 == 0
+                else {"task_id": f"q{i:03d}", "prompt": "What is a GPU?"}
+                for i in range(60)
+            ]
             baseline_config = tmp / "baseline.yaml"
             local_config_path = tmp / "local.yaml"
             (tmp / "baseline").mkdir()
@@ -370,7 +476,19 @@ def test_pipeline_stub_token_drop() -> None:
 
             local_ledger = tmp / "local-ledger.json"
             before = metrics(port)["requests"]
-            run_agent(tmp / "local", tasks, local_config_path, f"http://127.0.0.1:{port}", local_ledger)
+            run_agent(
+                tmp / "local",
+                tasks,
+                local_config_path,
+                f"http://127.0.0.1:{port}",
+                local_ledger,
+                extra_env={
+                    "STUB_SUMMARY_RESPONSE": (
+                        "Apollo carried 3 astronauts to the Moon, completed its goals, and "
+                        "returned safely to Earth."
+                    )
+                },
+            )
             local_requests = metrics(port)["requests"] - before
             local_tokens = json.loads(local_ledger.read_text(encoding="utf-8"))["total_tokens"]
             rows = validate_results(tmp / "local" / "results.json")
@@ -379,7 +497,7 @@ def test_pipeline_stub_token_drop() -> None:
             assert 0 < local_requests < baseline_requests, (local_requests, baseline_requests)
             assert local_tokens < baseline_tokens, (local_tokens, baseline_tokens)
             print(
-                "PIPELINE_LOCAL "
+                "PIPELINE_SUMMARY_QUEUE "
                 f"tasks={len(tasks)} baseline_remote={baseline_requests} local_remote={local_requests} "
                 f"baseline_tokens={baseline_tokens} local_tokens={local_tokens}"
             )
@@ -393,7 +511,8 @@ def main() -> None:
         ("disabled + no generation", test_disabled_and_no_generation_paths),
         ("deadline guard", test_deadline_guard),
         ("latency cap", test_latency_cap),
-        ("pipeline stub token drop", test_pipeline_stub_token_drop),
+        ("summary output caps", test_summary_output_caps),
+        ("pipeline summary queue token drop", test_pipeline_summary_queue_token_drop),
     ]
     for name, func in tests:
         start = time.time()

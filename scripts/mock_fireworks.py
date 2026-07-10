@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -68,13 +69,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def _content(self, user: str, max_tokens: int) -> str:
         lower = user.lower()
-        numbered = [line for line in user.splitlines() if line.strip().startswith(tuple(f"{i})" for i in range(1, 10)))]
+        numbered = []
+        for line in user.splitlines():
+            match = re.match(r"^\s*(\d+)\)\s+", line)
+            if match:
+                numbered.append(match.group(1))
         if numbered and "one line per item" in lower:
-            if "positive|negative|neutral" in lower:
-                return "\n".join(f"{idx}) positive" for idx, _ in enumerate(numbered, start=1))
+            if (
+                "positive|negative|neutral" in lower
+                or "one label: positive, negative, neutral" in lower
+            ):
+                return "\n".join(f"{idx}) positive" for idx in numbered)
             if "entity|type" in lower:
-                return "\n".join(f"{idx}) AMD|ORGANIZATION" for idx, _ in enumerate(numbered, start=1))
-            return "\n".join(f"{idx}) key fact" for idx, _ in enumerate(numbered, start=1))
+                return "\n".join(f"{idx}) AMD|ORGANIZATION" for idx in numbered)
+            return "\n".join(f"{idx}) key fact" for idx in numbered)
         if "one label" in lower or "sentiment" in lower:
             return "positive"
         if "final number only" in lower or "math" in lower:

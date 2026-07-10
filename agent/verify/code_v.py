@@ -116,7 +116,11 @@ def run_node(code: str, timeout: float = 2.0) -> tuple[bool, str]:
 
 
 def run_node_examples(code: str, examples: list[str], timeout: float = 2.0) -> bool:
-    harness = "const assert = require('node:assert');\n" + code + "\n\n" + "\n".join(examples) + "\n"
+    # `require('assert')`, not `require('node:assert')`: the node: scheme prefix only exists from
+    # Node 14.18/16 on, and Ubuntu 22.04's packaged node is 12 -- there the harness threw
+    # "Cannot find module 'node:assert'" and every JS task failed before its code ever ran.
+    # The unprefixed form resolves on every version, including 22.
+    harness = "const assert = require('assert');\n" + code + "\n\n" + "\n".join(examples) + "\n"
     ok, _ = run_node(harness, timeout=timeout)
     return ok
 

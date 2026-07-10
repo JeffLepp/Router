@@ -46,14 +46,7 @@ ALL_CATEGORIES = [
     "logic_puzzles",
     "code_generation",
 ]
-LOCAL_CATEGORIES = {
-    "actual_qa",
-    "math_reasoning",
-    "sentiment_analysis",
-    "named_entity_recognition",
-    "code_debugging",
-    "logic_puzzles",
-}
+LOCAL_CATEGORIES = {"summarization"}
 
 
 def _load_tasks(args: argparse.Namespace) -> list[dict[str, Any]]:
@@ -129,9 +122,12 @@ def _env_for_run(args: argparse.Namespace, mock_base_url: str | None) -> dict[st
                 "FIREWORKS_BASE_URL": mock_base_url,
                 "FIREWORKS_API_KEY": "mock-key",
                 "ALLOWED_MODELS": "mock-8b-instruct",
-                "AGENT_FORCE_STUB": "1",
             }
         )
+        if not args.mock_local_model:
+            env["AGENT_FORCE_STUB"] = "1"
+        else:
+            env.pop("AGENT_FORCE_STUB", None)
         return env
 
     missing = [
@@ -197,6 +193,8 @@ def _run_container(
     env: dict[str, str],
     image: str,
     timeout: float,
+    cpus: float,
+    memory: str,
 ) -> subprocess.CompletedProcess[str]:
     cmd = [
         "docker",
@@ -204,6 +202,10 @@ def _run_container(
         "--rm",
         "--platform",
         "linux/amd64",
+        "--cpus",
+        str(cpus),
+        "--memory",
+        memory,
         "-e",
         "CONFIG_PATH=/cfg/config.yaml",
         "-e",
@@ -264,19 +266,35 @@ def _ledger_by_task(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     single phantom "task" in remote_ids (inflating remote, deflating local/other) and its tokens
     vanish from the per-category table, because no task matches that id.
     """
-    by_task: dict[str, dict[str, Any]] = {}
     token_keys = ("total_tokens", "prompt_tokens", "completion_tokens")
+    by_task: dict[str, dict[str, Any]] = {}
+
+    def merge(task_id: str, entry: dict[str, Any], tokens: dict[str, int]) -> None:
+        previous = by_task.get(task_id)
+        merged = {**(previous or {}), **entry, "task_id": task_id}
+        for key in token_keys:
+            merged[key] = int((previous or {}).get(key, 0) or 0) + tokens[key]
+        by_task[task_id] = merged
+
     for entry in entries:
         task_id = str(entry.get("task_id", ""))
         if not task_id.startswith("batch:"):
-            by_task[task_id] = entry
+            tokens = {key: int(entry.get(key, 0) or 0) for key in token_keys}
+            merge(task_id, entry, tokens)
             continue
         members = [m for m in task_id.split(":", 1)[1].split(",") if m]
         if not members:
             continue
-        for member in members:
-            shared = {key: int(entry.get(key, 0) or 0) // len(members) for key in token_keys}
-            by_task[member] = {**entry, "task_id": member, **shared}
+        shares: dict[str, list[int]] = {}
+        for key in token_keys:
+            quotient, remainder = divmod(int(entry.get(key, 0) or 0), len(members))
+            shares[key] = [
+                quotient + (1 if index < remainder else 0)
+                for index in range(len(members))
+            ]
+        for index, member in enumerate(members):
+            shared = {key: shares[key][index] for key in token_keys}
+            merge(member, entry, shared)
     return by_task
 
 
@@ -482,10 +500,17 @@ def main() -> int:
     parser.add_argument("--category", action="append", choices=ALL_CATEGORIES)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--mock", action="store_true", help="use the local mock Fireworks server")
+    parser.add_argument(
+        "--mock-local-model",
+        action="store_true",
+        help="with --mock, run the real baked local model instead of the local stub",
+    )
     parser.add_argument("--score-judge", action="store_true", help="score LLM-judge methods too")
     parser.add_argument("--floor", choices=("floor-c", "floor-cl"), default="floor-c")
     parser.add_argument("--config", default=str(ROOT / "agent" / "config.yaml"))
     parser.add_argument("--container-image", help="run the benchmark inside this image")
+    parser.add_argument("--container-cpus", type=float, default=2.0)
+    parser.add_argument("--container-memory", default="4g")
     parser.add_argument("--env-file", default=".env.local", help="local env file for Fireworks credentials")
     parser.add_argument("--out-dir", help="directory for results, ledger, and report")
     parser.add_argument("--wall-seconds", type=float, default=510.0)
@@ -493,8 +518,8 @@ def main() -> int:
     parser.add_argument("--max-failures", type=int, default=12)
     args = parser.parse_args()
 
-    if args.mock and args.container_image:
-        raise SystemExit("--mock is host-only; omit --container-image for mock smoke tests")
+    if args.mock_local_model and not (args.mock and args.container_image):
+        raise SystemExit("--mock-local-model requires --mock and --container-image")
 
     tasks = _load_tasks(args)
     out_dir = Path(args.out_dir) if args.out_dir else Path(
@@ -516,14 +541,27 @@ def main() -> int:
         from scripts.acceptance_p1 import free_port, start_mock
 
         port = free_port()
-        mock_server = start_mock(port)
-        mock_base_url = f"http://127.0.0.1:{port}"
+        mock_host = "0.0.0.0" if args.container_image else "127.0.0.1"
+        mock_server = start_mock(port, host=mock_host)
+        mock_base_url = (
+            f"http://host.docker.internal:{port}"
+            if args.container_image
+            else f"http://127.0.0.1:{port}"
+        )
 
     try:
         env = _env_for_run(args, mock_base_url)
         start = time.monotonic()
         if args.container_image:
-            proc = _run_container(work, config, env, args.container_image, args.wall_seconds)
+            proc = _run_container(
+                work,
+                config,
+                env,
+                args.container_image,
+                args.wall_seconds,
+                args.container_cpus,
+                args.container_memory,
+            )
             runner = f"container:{args.container_image}"
         else:
             proc = _run_host(work, config, env, args.wall_seconds)
