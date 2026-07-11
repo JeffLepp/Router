@@ -1,5 +1,9 @@
 token_budget: 0
 mandatory_remote: 1
+# Hidden-set recovery profile: keep only operations that are recomputed from an explicit
+# numeric expression. All dataset-shaped and language-heuristic solvers remain remote.
+gate_enabled: true
+gate_profile: strict
 local_slots: 4
 remote_slots: 8
 wall_seconds: 510
@@ -39,22 +43,24 @@ batching:
   # Folds actual_qa/sentiment/ner into one request each, so minimax's ~119-token chat template
   # and the per-category contract are paid once instead of once per task. Lines that fail
   # validation are re-run individually, so a bad parse costs the un-batched price, not the task.
-  enabled: true
+  enabled: false
   # Requires repeated paid A/B evidence (zero pass→fail and >=145 actual tokens saved).
   code_enabled: false
   max_batch_size: 10
 remote:
-  timeout_seconds: 25
+  timeout_seconds: 28
   retries: 2
   temperature: 0
+  accuracy_first: true
+  reasoning_effort: high
   usd_per_mtok: 0.9
   dev_spend_cap: 0.0
 max_tokens:
-  actual_qa: 40
-  math_reasoning: 10
-  sentiment_analysis: 80
-  summarization: 220
-  named_entity_recognition: 60
-  code_debugging: 300
-  logic_puzzles: 40
-  code_generation: 300
+  actual_qa: 160
+  math_reasoning: 512
+  sentiment_analysis: 128
+  summarization: 400
+  named_entity_recognition: 160
+  code_debugging: 768
+  logic_puzzles: 512
+  code_generation: 768

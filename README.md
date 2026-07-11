@@ -12,13 +12,21 @@ judged (90%), 5,195 Fireworks tokens, and zero remote errors**. The deterministi
 and local-queue work after that run has passed local/mock checks but is not
 presented as a paid-live result.
 
-The release-safe default is Floor-C:
+After the 42.1% hidden-set result, the submission default is an accuracy-first
+recovery profile:
 
 1. Classify the task into one of eight categories.
-2. Try conservative proof-based solvers for zero tokens.
-3. Batch eligible short remote tasks.
-4. Send every unresolved task through `FIREWORKS_BASE_URL`, using only runtime
-   `ALLOWED_MODELS`.
+2. Answer only explicit, recomputable arithmetic and fixed metric conversions
+   locally; send everything else through `FIREWORKS_BASE_URL`, using only
+   runtime `ALLOWED_MODELS`.
+3. Prefer reasoning-capable models for math, logic, and code, request high
+   reasoning effort, and use non-starving completion caps.
+4. Keep heuristic deterministic gates and batching off until they pass a
+   genuinely out-of-distribution precision suite.
+
+The previous token-efficient behavior remains available as
+`agent/config.efficiency.yaml` for controlled A/B tests. Accuracy must recover
+before any of those optimizations are promoted back into the default.
 
 An optional Floor-CL profile adds a single sequential, summary-only llama.cpp
 queue while non-summary remote work runs concurrently. Anything rejected or

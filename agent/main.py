@@ -119,6 +119,7 @@ async def _snapshot_loop(writer: SnapshotWriter, interval: float, stop: asyncio.
 
 async def _prepare_deterministic_one(
     state: TaskState,
+    config: AgentConfig,
     contracts: dict[str, Any],
     writer: SnapshotWriter,
     semaphore: asyncio.Semaphore,
@@ -128,9 +129,16 @@ async def _prepare_deterministic_one(
         state.category = classification.category
         state.confidence = classification.confidence
         answer = None
-        if classification.confidence >= 0.6:
-            answer = gate_solve(state.category, state.task.prompt)
-        if answer is None and state.category == "logic_puzzles":
+        if config.gate_enabled and classification.confidence >= 0.6:
+            answer = gate_solve(
+                state.category, state.task.prompt, profile=config.gate_profile
+            )
+        if (
+            config.gate_enabled
+            and config.gate_profile == "legacy"
+            and answer is None
+            and state.category == "logic_puzzles"
+        ):
             answer = solve_certified_invalid(state.task.prompt)
         if answer is not None:
             state.answer = answer
@@ -208,6 +216,8 @@ async def _run_remote(
             timeout=float(config.remote.get("timeout_seconds", 25)),
             retries=int(config.remote.get("retries", 2)),
             temperature=float(config.remote.get("temperature", 0)),
+            accuracy_first=bool(config.remote.get("accuracy_first", False)),
+            reasoning_effort=str(config.remote.get("reasoning_effort", "none") or ""),
             usd_per_mtok=float(config.remote.get("usd_per_mtok", 0) or 0),
             dev_spend_cap=float(config.remote.get("dev_spend_cap", 0) or 0),
         )
@@ -323,6 +333,7 @@ async def run_agent() -> int:
             *(
                 _prepare_deterministic_one(
                     state,
+                    config,
                     contracts,
                     writer,
                     prepare_sem,

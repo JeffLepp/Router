@@ -23,7 +23,7 @@ FAMILY_PRIOR = {
     "deepseek": 7,
     "gpt-oss": 8,
 }
-REASONING_RE = re.compile(r"\b(r1|reason|thinking|think|qwq)\b", re.I)
+REASONING_RE = re.compile(r"\b(r1|reason(?:ing)?|thinking|think|qwq|gpt-oss)\b", re.I)
 # Measured on Fireworks 2026-07-09 with a 1-token user message: minimax-m3 bills 119
 # prompt tokens before we send a single word (a provider-side chat template), kimi-k2p7-code
 # bills 24. That ~95-token surcharge is paid on EVERY call, so it dominates short-answer
@@ -156,6 +156,26 @@ def choose_model_for_category(category: str, models: list[str]) -> str:
     return choose_default_model(candidates)
 
 
+def choose_accuracy_model(category: str, models: list[str]) -> str:
+    """Prefer reasoning-capable models for tasks where extra compute can change correctness.
+
+    Other categories retain the measured family preferences, but unlike the token-first path
+    they do not discard reasoning models before applying those preferences.
+    """
+    category = canonical_category(category)
+    if not models:
+        raise RuntimeError("ALLOWED_MODELS is empty but remote calls are enabled")
+    if category in {"math_reasoning", "logic_puzzles", "code_debugging", "code_generation"}:
+        reasoning = [model for model in models if REASONING_RE.search(model)]
+        if reasoning:
+            return rank_models(reasoning)[0]
+    for pattern in CATEGORY_MODEL_PATTERNS.get(category, ()):
+        matches = [model for model in models if re.search(pattern, model, re.I)]
+        if matches:
+            return rank_models(matches)[0]
+    return choose_default_model(models)
+
+
 def select_budgeted_calls(calls: list[RemoteCall], budget: int) -> list[RemoteCall]:
     if budget <= 0:
         return []
@@ -181,6 +201,8 @@ class RemoteClient:
         timeout: float = 25.0,
         retries: int = 2,
         temperature: float = 0.0,
+        accuracy_first: bool = False,
+        reasoning_effort: str = "none",
         usd_per_mtok: float = 0.0,
         dev_spend_cap: float = 0.0,
     ) -> None:
@@ -190,6 +212,8 @@ class RemoteClient:
         self.timeout = timeout
         self.retries = retries
         self.temperature = temperature
+        self.accuracy_first = accuracy_first
+        self.reasoning_effort = reasoning_effort
         self.dev_spend_cap = dev_spend_cap
         self.ledger = TokenLedger(usd_per_mtok=usd_per_mtok)
         # Models that rejected `reasoning_effort`; we stop sending it to them.
@@ -212,8 +236,8 @@ class RemoteClient:
             "max_tokens": call.max_tokens,
             "stop": ["\n\n\n"],
         }
-        if model not in self._no_reasoning_param:
-            payload["reasoning_effort"] = "none"
+        if self.reasoning_effort and model not in self._no_reasoning_param:
+            payload["reasoning_effort"] = self.reasoning_effort
         return payload
 
     async def complete(self, call: RemoteCall) -> str:
@@ -223,7 +247,11 @@ class RemoteClient:
         if self.dev_spend_cap > 0 and projected > self.dev_spend_cap:
             raise RuntimeError("remote dev spend cap reached")
 
-        model = choose_model_for_category(call.category, self.models)
+        model = (
+            choose_accuracy_model(call.category, self.models)
+            if self.accuracy_first
+            else choose_model_for_category(call.category, self.models)
+        )
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -248,7 +276,7 @@ class RemoteClient:
                 # A blank completion scores zero (reasoning models can burn the
                 # whole budget on hidden reasoning), so spend one retry on the
                 # next-ranked model before returning it.
-                fallback = _other_model(model, self.models)
+                fallback = _other_model(model, self.models, call.category, self.accuracy_first)
                 if content or blank_fallback_used or fallback is None or attempt >= self.retries:
                     return content
                 blank_fallback_used = True
@@ -266,8 +294,18 @@ class RemoteClient:
         raise RuntimeError(f"remote call failed: {last_error}")
 
 
-def _other_model(primary: str, models: list[str]) -> str | None:
-    return next((m for m in rank_models(models) if m != primary), None)
+def _other_model(
+    primary: str,
+    models: list[str],
+    category: str | None = None,
+    accuracy_first: bool = False,
+) -> str | None:
+    remaining = [model for model in models if model != primary]
+    if not remaining:
+        return None
+    if accuracy_first and category is not None:
+        return choose_accuracy_model(category, remaining)
+    return rank_models(remaining)[0]
 
 
 def _param_rejection(exc: BaseException) -> bool:

@@ -27,6 +27,11 @@ def solve(prompt: str) -> str | None:
     return None
 
 
+def solve_strict(prompt: str) -> str | None:
+    """Handle only explicit metric conversions with fixed, exact scale factors."""
+    return _unit_conversion(normalize(prompt))
+
+
 def _rate_times_time(text: str) -> str | None:
     match = re.search(
         rf"travels?\s+({_NUM})\s*(?:km/h|kph|mph|meters per second|m/s).*?for\s+({_NUM})\s*(?:hours?|hrs?|h)\b",
@@ -154,9 +159,10 @@ def _self_check() -> None:
     assert solve("A shirt is $80 after a 20% discount. How much was the original price?") == "100"
     assert solve("Convert 2 kilometers to meters.") == "2000"
     assert solve("A shop sells a bundle with unknown taxes. What is the total?") is None
+    assert solve_strict("Convert 2 kilometers to meters.") == "2000"
+    assert solve_strict("A car travels 60 km/h for 3 hours. How far does it travel?") is None
 
 
 if __name__ == "__main__":
     _self_check()
     print("wordmath solver self-check passed")
-
