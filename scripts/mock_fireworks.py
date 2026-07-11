@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import re
 import threading
@@ -69,6 +70,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def _content(self, user: str, max_tokens: int) -> str:
         lower = user.lower()
+        if "tasks_json:" in lower and "allowed labels:" in lower:
+            try:
+                from agent.classify import classify
+
+                rows = json.loads(user.split("TASKS_JSON:", 1)[1].strip())
+                mapped = {
+                    str(row["task_id"]): asyncio.run(
+                        classify(str(row.get("prompt", "")), None)
+                    ).category
+                    for row in rows
+                    if isinstance(row, dict) and row.get("task_id") is not None
+                }
+                return json.dumps(mapped, separators=(",", ":"))
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                return "{}"
         numbered = []
         for line in user.splitlines():
             match = re.match(r"^\s*(\d+)\)\s+", line)
@@ -87,6 +103,8 @@ class Handler(BaseHTTPRequestHandler):
             return "positive"
         if "final number only" in lower or "math" in lower:
             return "42"
+        if '"entities"' in lower and "exact span" in lower:
+            return '{"entities":[{"text":"AMD","type":"ORGANIZATION"}]}'
         if "entity|type" in lower:
             return "AMD|ORG"
         if "corrected code" in lower or "return code only" in lower:

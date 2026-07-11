@@ -11,7 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agent.classify import classify
+from agent.classify import (
+    build_remote_classifier_prompt,
+    classify,
+    parse_remote_classifications,
+)
 from agent.config import AgentConfig
 from agent.contracts import build_contracts
 from agent.gate import solve as gate_solve
@@ -123,13 +127,17 @@ async def _prepare_deterministic_one(
     contracts: dict[str, Any],
     writer: SnapshotWriter,
     semaphore: asyncio.Semaphore,
+    classification_override: tuple[str, float] | None = None,
 ) -> None:
     async with semaphore:
-        classification = await classify(state.task.prompt, None)
-        state.category = classification.category
-        state.confidence = classification.confidence
+        if classification_override is None:
+            classification = await classify(state.task.prompt, None)
+            state.category = classification.category
+            state.confidence = classification.confidence
+        else:
+            state.category, state.confidence = classification_override
         answer = None
-        if config.gate_enabled and classification.confidence >= 0.6:
+        if config.gate_enabled and state.confidence >= 0.6:
             answer = gate_solve(
                 state.category, state.task.prompt, profile=config.gate_profile
             )
@@ -198,6 +206,88 @@ async def _run_summary_local_queue(
         await writer.write()
 
 
+def _make_remote_client(config: AgentConfig) -> Any:
+    remote_module = importlib.import_module("agent.remote")
+    return remote_module.RemoteClient(
+        timeout=float(config.remote.get("timeout_seconds", 25)),
+        retries=int(config.remote.get("retries", 2)),
+        temperature=float(config.remote.get("temperature", 0)),
+        accuracy_first=bool(config.remote.get("accuracy_first", False)),
+        reasoning_effort=str(config.remote.get("reasoning_effort", "none") or ""),
+        usd_per_mtok=float(config.remote.get("usd_per_mtok", 0) or 0),
+        dev_spend_cap=float(config.remote.get("dev_spend_cap", 0) or 0),
+    )
+
+
+async def _run_remote_classifier(
+    states: list[TaskState],
+    config: AgentConfig,
+    deadline: float,
+    client: Any | None = None,
+) -> tuple[dict[str, tuple[str, float]], Any | None]:
+    """Classify task batches remotely, with conservative local fallback per missing row."""
+    cfg = dict(config.remote or {})
+    if not bool(cfg.get("classifier_enabled", False)) or not config.remote_enabled or not states:
+        return {}, client
+
+    remote_module = importlib.import_module("agent.remote")
+    client = client or _make_remote_client(config)
+    batch_size = max(1, int(cfg.get("classifier_batch_size", 20) or 20))
+    max_cap = max(64, int(cfg.get("classifier_max_tokens", 512) or 512))
+    confidence = min(1.0, max(0.6, float(cfg.get("classifier_confidence", 0.99) or 0.99)))
+    original_effort = str(getattr(client, "reasoning_effort", "") or "")
+    overrides: dict[str, tuple[str, float]] = {}
+    client.reasoning_effort = ""
+    try:
+        for offset in range(0, len(states), batch_size):
+            batch = states[offset : offset + batch_size]
+            remaining = deadline - time.monotonic()
+            if remaining <= 1:
+                break
+            prompt = build_remote_classifier_prompt(
+                [(state.task.task_id, state.task.prompt) for state in batch]
+            )
+            call = remote_module.RemoteCall(
+                task_id=f"classifier:{offset // batch_size}",
+                category=str(cfg.get("classifier_model_category", "summarization")),
+                prompt=prompt,
+                max_tokens=max_cap,
+                mandatory=True,
+            )
+            try:
+                timeout = min(float(cfg.get("timeout_seconds", 25)), max(0.5, remaining))
+                payload = await asyncio.wait_for(client.complete(call), timeout=timeout)
+                expected = {state.task.task_id for state in batch}
+                parsed = parse_remote_classifications(payload, expected)
+                diagnostics = getattr(client, "classifier_diagnostics", None)
+                if not isinstance(diagnostics, list):
+                    diagnostics = []
+                    setattr(client, "classifier_diagnostics", diagnostics)
+                diagnostics.append(
+                    {
+                        "batch": offset // batch_size,
+                        "task_ids": sorted(expected),
+                        "parsed": len(parsed),
+                        "response": payload,
+                    }
+                )
+                overrides.update(
+                    {task_id: (category, confidence) for task_id, category in parsed.items()}
+                )
+                print(
+                    f"classifier_batch index={offset // batch_size} parsed={len(parsed)}/{len(batch)}",
+                    file=sys.stderr,
+                )
+            except Exception as exc:
+                print(
+                    f"classifier_error batch={offset // batch_size} error={exc}",
+                    file=sys.stderr,
+                )
+    finally:
+        client.reasoning_effort = original_effort
+    return overrides, client
+
+
 async def _run_remote(
     states: list[TaskState],
     config: AgentConfig,
@@ -212,15 +302,7 @@ async def _run_remote(
 
     remote_module = importlib.import_module("agent.remote")
     if client is None:
-        client = remote_module.RemoteClient(
-            timeout=float(config.remote.get("timeout_seconds", 25)),
-            retries=int(config.remote.get("retries", 2)),
-            temperature=float(config.remote.get("temperature", 0)),
-            accuracy_first=bool(config.remote.get("accuracy_first", False)),
-            reasoning_effort=str(config.remote.get("reasoning_effort", "none") or ""),
-            usd_per_mtok=float(config.remote.get("usd_per_mtok", 0) or 0),
-            dev_spend_cap=float(config.remote.get("dev_spend_cap", 0) or 0),
-        )
+        client = _make_remote_client(config)
     calls = [
         remote_module.RemoteCall(
             task_id=state.task.task_id,
@@ -329,6 +411,9 @@ async def run_agent() -> int:
     state_list = list(states.values())
 
     try:
+        classification_overrides, remote_client = await _run_remote_classifier(
+            state_list, config, deadline
+        )
         await asyncio.gather(
             *(
                 _prepare_deterministic_one(
@@ -337,17 +422,24 @@ async def run_agent() -> int:
                     contracts,
                     writer,
                     prepare_sem,
+                    classification_overrides.get(state.task.task_id),
                 )
                 for state in state_list
             )
         )
-        remote_client = None
         if _summary_local_enabled(config):
             local_client = await make_local_client(config.llama, config.local_candidate)
             non_summaries = [state for state in state_list if state.category != "summarization"]
             summaries = [state for state in state_list if state.category == "summarization"]
             remote_task = asyncio.create_task(
-                _run_remote(non_summaries, config, contracts, writer, deadline)
+                _run_remote(
+                    non_summaries,
+                    config,
+                    contracts,
+                    writer,
+                    deadline,
+                    client=remote_client,
+                )
             )
             await _run_summary_local_queue(
                 summaries, config, local_client, writer, deadline
@@ -357,7 +449,9 @@ async def run_agent() -> int:
                 summaries, config, contracts, writer, deadline, client=remote_client
             )
         else:
-            remote_client = await _run_remote(state_list, config, contracts, writer, deadline)
+            remote_client = await _run_remote(
+                state_list, config, contracts, writer, deadline, client=remote_client
+            )
         await writer.write()
         if remote_client is not None:
             ledger = remote_client.ledger.as_dict()

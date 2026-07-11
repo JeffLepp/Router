@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 
@@ -121,6 +122,70 @@ def canonical_category(category: str) -> str:
     return mapped if mapped in CATEGORIES else "actual_qa"
 
 
+def build_remote_classifier_prompt(items: list[tuple[str, str]]) -> str:
+    """Build one compact, answer-free classification request.
+
+    The remote classifier only chooses a routing label. It never receives gold answers and
+    never answers the tasks, so a malformed response can safely fall back to the local regex
+    classifier without losing a task.
+    """
+    payload = [
+        {"task_id": str(task_id), "prompt": str(prompt)}
+        for task_id, prompt in items
+    ]
+    labels = ", ".join(CATEGORIES)
+    return (
+        "Classify each task by its requested output, not by incidental words in its passage.\n"
+        f"Allowed labels: {labels}.\n"
+        "Return ONLY one compact JSON object mapping every task_id to exactly one allowed "
+        "label. Do not answer any task and do not explain.\n"
+        "TASKS_JSON:\n"
+        + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    )
+
+
+def parse_remote_classifications(
+    response: str, expected_ids: set[str]
+) -> dict[str, str]:
+    """Parse a classifier response conservatively; invalid/missing rows defer locally."""
+    text = str(response or "").strip()
+    if text.startswith("```") and text.endswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.I)
+        text = re.sub(r"\s*```$", "", text)
+    start, end = text.find("{"), text.rfind("}")
+    payload: object | None = None
+    if start >= 0 and end >= start:
+        try:
+            payload = json.loads(text[start : end + 1])
+        except (json.JSONDecodeError, TypeError):
+            payload = None
+
+    rows: list[tuple[object, object]] = []
+    if isinstance(payload, dict) and isinstance(payload.get("classifications"), list):
+        payload = payload["classifications"]
+    if isinstance(payload, dict):
+        rows = list(payload.items())
+    elif isinstance(payload, list):
+        rows = [
+            (row.get("task_id"), row.get("category"))
+            for row in payload
+            if isinstance(row, dict)
+        ]
+    if not rows:
+        # A reasoning model can consume the output budget before writing the final `}`.
+        # Complete string pairs are still safe to accept; unfinished/missing rows defer to
+        # the local classifier rather than invalidating the whole batch.
+        rows = re.findall(r'"([^"\\]+)"\s*:\s*"([^"\\]+)"', text)
+
+    parsed: dict[str, str] = {}
+    for task_id_raw, category_raw in rows:
+        task_id = str(task_id_raw or "")
+        category = LEGACY_CATEGORY_MAP.get(str(category_raw or "").strip(), str(category_raw or "").strip())
+        if task_id in expected_ids and category in CATEGORIES:
+            parsed[task_id] = category
+    return parsed
+
+
 def _looks_like_review(text: str) -> bool:
     """Declarative, non-question text -- the only shape we trust weak sentiment words on."""
     return "?" not in text and not _QUESTION_OR_COMMAND_START.match(text)
@@ -198,6 +263,19 @@ def _self_check() -> None:
     # ...but a real debug task that merely mentions a summary stays code_debugging.
     assert cat("Fix the bug in this function:\n```python\ndef f(): return summary\n```") \
         == "code_debugging"
+    prompt = build_remote_classifier_prompt(
+        [("t1", "Which person is mentioned?"), ("t2", "The service was awful.")]
+    )
+    assert "TASKS_JSON:" in prompt and "t1" in prompt and "t2" in prompt
+    parsed = parse_remote_classifications(
+        '```json\n{"t1":"named_entity_recognition","t2":"sentiment_analysis","x":"logic_puzzles"}\n```',
+        {"t1", "t2"},
+    )
+    assert parsed == {"t1": "named_entity_recognition", "t2": "sentiment_analysis"}
+    assert parse_remote_classifications("not json", {"t1"}) == {}
+    assert parse_remote_classifications(
+        '{"t1":"logic_puzzles","t2":"named_entity_recognition', {"t1", "t2"}
+    ) == {"t1": "logic_puzzles"}
     print("PASS classify self-check")
 
 

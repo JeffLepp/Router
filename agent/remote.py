@@ -218,9 +218,14 @@ class RemoteClient:
         self.ledger = TokenLedger(usd_per_mtok=usd_per_mtok)
         # Models that rejected `reasoning_effort`; we stop sending it to them.
         self._no_reasoning_param: set[str] = set()
+        self._dead_models: set[str] = set()
         if not self.base_url:
             raise RuntimeError("FIREWORKS_BASE_URL is required when remote calls are enabled")
         choose_default_model(self.models)
+
+    def _usable_models(self) -> list[str]:
+        alive = [model for model in self.models if model not in self._dead_models]
+        return alive or self.models
 
     def _payload(self, model: str, call: RemoteCall) -> dict[str, Any]:
         payload = {
@@ -247,10 +252,11 @@ class RemoteClient:
         if self.dev_spend_cap > 0 and projected > self.dev_spend_cap:
             raise RuntimeError("remote dev spend cap reached")
 
+        usable = self._usable_models()
         model = (
-            choose_accuracy_model(call.category, self.models)
+            choose_accuracy_model(call.category, usable)
             if self.accuracy_first
-            else choose_model_for_category(call.category, self.models)
+            else choose_model_for_category(call.category, usable)
         )
         headers = {"Content-Type": "application/json"}
         if self.api_key:
@@ -276,18 +282,32 @@ class RemoteClient:
                 # A blank completion scores zero (reasoning models can burn the
                 # whole budget on hidden reasoning), so spend one retry on the
                 # next-ranked model before returning it.
-                fallback = _other_model(model, self.models, call.category, self.accuracy_first)
+                fallback = _other_model(
+                    model, self._usable_models(), call.category, self.accuracy_first
+                )
                 if content or blank_fallback_used or fallback is None or attempt >= self.retries:
                     return content
                 blank_fallback_used = True
                 model = fallback
             except BaseException as exc:
                 last_error = exc
-                # ponytail: any HTTP 400 is treated as `reasoning_effort`
-                # rejection; the retry merely drops the param, harmless if the
-                # 400 had another cause.
-                if _param_rejection(exc):
+                if (
+                    self.reasoning_effort
+                    and model not in self._no_reasoning_param
+                    and _param_rejection(exc)
+                ):
                     self._no_reasoning_param.add(model)
+                else:
+                    if _model_unavailable(exc):
+                        self._dead_models.add(model)
+                    alternate = _other_model(
+                        model,
+                        self._usable_models(),
+                        call.category,
+                        self.accuracy_first,
+                    )
+                    if alternate is not None:
+                        model = alternate
                 if attempt >= self.retries:
                     break
                 await asyncio.sleep(min(0.25 * (2**attempt), 1.0))
@@ -311,6 +331,16 @@ def _other_model(
 def _param_rejection(exc: BaseException) -> bool:
     text = str(exc)
     return "reasoning_effort" in text or "invalid_request_error" in text or "HTTP 400" in text or "400 Bad Request" in text
+
+
+def _model_unavailable(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return (
+        bool(re.search(r"\b(401|403|404)\b", text))
+        or "model not found" in text
+        or "does not exist" in text
+        or "no access" in text
+    )
 
 
 def _message_content(data: dict[str, Any]) -> str:
@@ -419,6 +449,36 @@ async def _self_check_complete() -> None:
         answer = await RemoteClient().complete(call)
         assert answer == "4", answer
         assert efforts_sent == [True, False], efforts_sent
+
+        # 3. A request failure rotates to another model; hard failures are blacklisted.
+        tried: list[str] = []
+
+        async def dead_then_ok(url, payload, headers, timeout):
+            tried.append(payload["model"])
+            if len(tried) == 1:
+                raise RuntimeError('HTTP 404: {"error":"Model not found"}')
+            return {"choices": [{"message": {"content": "4"}}], "usage": {}}
+
+        _post_json = dead_then_ok
+        client = RemoteClient()
+        answer = await client.complete(call)
+        assert answer == "4" and len(tried) == 2 and tried[0] != tried[1], tried
+        assert tried[0] in client._dead_models
+
+        # 4. Transient errors rotate without blacklisting.
+        transient_tried: list[str] = []
+
+        async def transient_then_ok(url, payload, headers, timeout):
+            transient_tried.append(payload["model"])
+            if len(transient_tried) == 1:
+                raise RuntimeError("HTTP 500: upstream overloaded")
+            return {"choices": [{"message": {"content": "4"}}], "usage": {}}
+
+        _post_json = transient_then_ok
+        client = RemoteClient()
+        answer = await client.complete(call)
+        assert answer == "4" and transient_tried[0] != transient_tried[1]
+        assert not client._dead_models
     finally:
         _post_json = real
 

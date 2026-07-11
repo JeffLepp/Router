@@ -44,14 +44,14 @@ batching:
   # and the per-category contract are paid once instead of once per task. Lines that fail
   # validation are re-run individually, so a bad parse costs the un-batched price, not the task.
   enabled: false
-  # Requires repeated paid A/B evidence (zero pass-to-fail and >=145 actual tokens saved).
+  # Requires repeated paid A/B evidence (zero passâ†’fail and >=145 actual tokens saved).
   code_enabled: false
   max_batch_size: 10
 remote:
   timeout_seconds: 45
   retries: 2
   temperature: 0
-  # One direct-model batch classifies the real judge's approximately 19 tasks.
+  # Opt-in experiment only. The control router keeps the local regex classifier.
   classifier_enabled: true
   classifier_batch_size: 20
   classifier_max_tokens: 1024
