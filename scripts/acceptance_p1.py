@@ -331,7 +331,7 @@ def test_model_preferences() -> None:
     assert choose_model_for_category("code_generation", models) == "kimi-k2p7-code"
     assert choose_model_for_category("code_debugging", models) == "kimi-k2p7-code"
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
-    assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
+    assert choose_model_for_category("sentiment_analysis", models) == "minimax-m3"
     assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
 
 

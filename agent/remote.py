@@ -24,6 +24,11 @@ FAMILY_PRIOR = {
     "gpt-oss": 8,
 }
 REASONING_RE = re.compile(r"\b(r1|reason|thinking|think|qwq)\b", re.I)
+NON_CHAT_RE = re.compile(
+    r"\b(flux|image|audio|whisper|embed|tts|guard|moderat|rerank|ocr|video)\b",
+    re.I,
+)
+MODEL_PREFIX = "accounts/fireworks/models/"
 # Measured on Fireworks 2026-07-09 with a 1-token user message: minimax-m3 bills 119
 # prompt tokens before we send a single word (a provider-side chat template), kimi-k2p7-code
 # bills 24. That ~95-token surcharge is paid on EVERY call, so it dominates short-answer
@@ -35,9 +40,9 @@ REASONING_RE = re.compile(r"\b(r1|reason|thinking|think|qwq)\b", re.I)
 CATEGORY_MODEL_PATTERNS = {
     "code_debugging": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
     "code_generation": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "sentiment_analysis": (r"gemma.*26.*it", r"gemma.*31.*nvfp4", r"minimax"),
+    "sentiment_analysis": (r"minimax", r"gemma.*26.*it", r"gemma.*31.*nvfp4"),
     "math_reasoning": (r"minimax", r"gemma.*31.*it", r"gemma.*26.*it"),
-    "logic_puzzles": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
+    "logic_puzzles": (r"minimax", r"gemma.*31.*it", r"kimi.*code"),
     "actual_qa": (r"minimax", r"gemma.*31.*it", r"gemma.*31.*nvfp4"),
     "summarization": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
     "named_entity_recognition": (r"gemma.*31.*it", r"kimi.*code", r"minimax"),
@@ -103,7 +108,20 @@ class TokenLedger:
 
 def parse_allowed_models(raw: str | None = None) -> list[str]:
     source = os.environ.get("ALLOWED_MODELS", "") if raw is None else raw
+    stripped = source.strip()
+    if stripped.startswith("["):
+        try:
+            decoded = json.loads(stripped)
+        except (TypeError, ValueError):
+            decoded = None
+        if isinstance(decoded, list):
+            return [str(model).strip() for model in decoded if str(model).strip()]
     return [part.strip() for part in source.split(",") if part.strip()]
+
+
+def _chat_models(models: list[str]) -> list[str]:
+    chat = [model for model in models if not NON_CHAT_RE.search(model)]
+    return chat or models
 
 
 def _param_count(model: str) -> float:
@@ -136,7 +154,7 @@ def rank_models(models: list[str]) -> list[str]:
 
 
 def choose_default_model(models: list[str]) -> str:
-    ranked = rank_models(models)
+    ranked = rank_models(_chat_models(models))
     if not ranked:
         raise RuntimeError("ALLOWED_MODELS is empty but remote calls are enabled")
     return ranked[0]
@@ -146,8 +164,9 @@ def choose_model_for_category(category: str, models: list[str]) -> str:
     category = canonical_category(category)
     if not models:
         raise RuntimeError("ALLOWED_MODELS is empty but remote calls are enabled")
-    non_reasoning = [model for model in models if not REASONING_RE.search(model)]
-    candidates = non_reasoning or models
+    chat_models = _chat_models(models)
+    non_reasoning = [model for model in chat_models if not REASONING_RE.search(model)]
+    candidates = non_reasoning or chat_models
     for pattern in CATEGORY_MODEL_PATTERNS.get(category, ()):
         regex = re.compile(pattern, re.I)
         matches = [model for model in candidates if regex.search(model)]
@@ -198,7 +217,9 @@ class RemoteClient:
             raise RuntimeError("FIREWORKS_BASE_URL is required when remote calls are enabled")
         choose_default_model(self.models)
 
-    def _payload(self, model: str, call: RemoteCall) -> dict[str, Any]:
+    def _payload(
+        self, model: str, call: RemoteCall, max_tokens: int | None = None
+    ) -> dict[str, Any]:
         payload = {
             "model": model,
             "messages": [
@@ -209,8 +230,7 @@ class RemoteClient:
                 {"role": "user", "content": call.prompt},
             ],
             "temperature": self.temperature,
-            "max_tokens": call.max_tokens,
-            "stop": ["\n\n\n"],
+            "max_tokens": call.max_tokens if max_tokens is None else max_tokens,
         }
         if model not in self._no_reasoning_param:
             payload["reasoning_effort"] = "none"
@@ -223,51 +243,88 @@ class RemoteClient:
         if self.dev_spend_cap > 0 and projected > self.dev_spend_cap:
             raise RuntimeError("remote dev spend cap reached")
 
-        model = choose_model_for_category(call.category, self.models)
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         deadline = time.monotonic() + self.timeout
         last_error: BaseException | None = None
-        blank_fallback_used = False
-        for attempt in range(self.retries + 1):
-            remaining = max(0.5, deadline - time.monotonic())
-            try:
-                data = await asyncio.wait_for(
-                    _post_json(
-                        _completion_url(self.base_url),
-                        self._payload(model, call),
-                        headers,
-                        remaining,
-                    ),
-                    timeout=remaining,
-                )
-                content = _message_content(data).strip()
-                usage = dict(data.get("usage", {}) or {})
-                self.ledger.add(call.task_id, model, usage, call.estimated_tokens)
-                # A blank completion scores zero (reasoning models can burn the
-                # whole budget on hidden reasoning), so spend one retry on the
-                # next-ranked model before returning it.
-                fallback = _other_model(model, self.models)
-                if content or blank_fallback_used or fallback is None or attempt >= self.retries:
-                    return content
-                blank_fallback_used = True
-                model = fallback
-            except BaseException as exc:
-                last_error = exc
-                # ponytail: any HTTP 400 is treated as `reasoning_effort`
-                # rejection; the retry merely drops the param, harmless if the
-                # 400 had another cause.
-                if _param_rejection(exc):
-                    self._no_reasoning_param.add(model)
-                if attempt >= self.retries:
+        had_response = False
+
+        for model in _ordered_models_for_category(call.category, self.models):
+            model_had_response = False
+            for serving_model in _serving_model_ids(model):
+                transient_attempt = 0
+                reasoning_retry_used = False
+                length_retry_used = False
+                max_tokens = call.max_tokens
+
+                while time.monotonic() < deadline:
+                    remaining = max(0.5, deadline - time.monotonic())
+                    try:
+                        data = await asyncio.wait_for(
+                            _post_json(
+                                _completion_url(self.base_url),
+                                self._payload(serving_model, call, max_tokens),
+                                headers,
+                                remaining,
+                            ),
+                            timeout=remaining,
+                        )
+                        had_response = model_had_response = True
+                        content = _message_content(data).strip()
+                        usage = dict(data.get("usage", {}) or {})
+                        self.ledger.add(
+                            call.task_id, serving_model, usage, call.estimated_tokens
+                        )
+
+                        if _finish_reason(data) == "length" and not length_retry_used:
+                            larger_cap = _retry_token_cap(max_tokens)
+                            if larger_cap > max_tokens:
+                                length_retry_used = True
+                                max_tokens = larger_cap
+                                continue
+                        if content:
+                            return content
+                        last_error = RuntimeError("blank remote completion")
+                        break
+                    except BaseException as exc:
+                        last_error = exc
+                        if _param_rejection(exc) and not reasoning_retry_used:
+                            reasoning_retry_used = True
+                            self._no_reasoning_param.add(serving_model)
+                            continue
+                        # The harness can provide bare allowed IDs while the Fireworks
+                        # serving API requires accounts/fireworks/models/<id>. A 404 is
+                        # fast and unbilled, so try the canonical form, then another
+                        # allowed model family.
+                        if _not_found(exc):
+                            break
+                        if transient_attempt >= self.retries:
+                            break
+                        await asyncio.sleep(min(0.25 * (2**transient_attempt), 1.0))
+                        transient_attempt += 1
+
+                # Once an ID produced a response, a blank/length-limited answer should
+                # fall back to another logical model, not retry the same model under a
+                # second spelling.
+                if model_had_response:
                     break
-                await asyncio.sleep(min(0.25 * (2**attempt), 1.0))
+
+        if had_response:
+            return ""
         raise RuntimeError(f"remote call failed: {last_error}")
 
 
-def _other_model(primary: str, models: list[str]) -> str | None:
-    return next((m for m in rank_models(models) if m != primary), None)
+def _ordered_models_for_category(category: str, models: list[str]) -> list[str]:
+    candidates = _chat_models(models)
+    primary = choose_model_for_category(category, candidates)
+    return [primary, *(model for model in rank_models(candidates) if model != primary)]
+
+
+def _serving_model_ids(model: str) -> tuple[str, ...]:
+    if "/" in model:
+        return (model,)
+    return (model, MODEL_PREFIX + model)
 
 
 def _param_rejection(exc: BaseException) -> bool:
@@ -275,12 +332,30 @@ def _param_rejection(exc: BaseException) -> bool:
     return "reasoning_effort" in text or "invalid_request_error" in text or "HTTP 400" in text or "400 Bad Request" in text
 
 
+def _not_found(exc: BaseException) -> bool:
+    text = str(exc)
+    return "HTTP 404" in text or "404 Not Found" in text
+
+
+def _retry_token_cap(current: int) -> int:
+    return min(max(current * 2, current + 128), 2400)
+
+
 def _message_content(data: dict[str, Any]) -> str:
     message = dict(data["choices"][0].get("message") or {})
     content = message.get("content")
+    if isinstance(content, list):
+        content = "".join(
+            str(part.get("text", "")) if isinstance(part, dict) else str(part)
+            for part in content
+        )
     if content is None:
         content = message.get("reasoning_content", "")
     return str(content or "")
+
+
+def _finish_reason(data: dict[str, Any]) -> str:
+    return str(data.get("choices", [{}])[0].get("finish_reason") or "").lower()
 
 
 def _completion_url(base_url: str) -> str:
@@ -329,14 +404,14 @@ def _self_check() -> None:
     assert choose_model_for_category("code_generation", models) == "kimi-k2p7-code"
     assert choose_model_for_category("code_debugging", models) == "kimi-k2p7-code"
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
-    assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
+    assert choose_model_for_category("sentiment_analysis", models) == "minimax-m3"
     assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
-    # Knowledge stays on minimax; transformations take the low-overhead model.
+    # Knowledge and hard reasoning stay on minimax; measured transformations use Kimi.
     two = ["minimax-m3", "kimi-k2p7-code"]
     assert choose_model_for_category("actual_qa", two) == "minimax-m3"
     assert choose_model_for_category("sentiment_analysis", two) == "minimax-m3"
     assert choose_model_for_category("summarization", two) == "kimi-k2p7-code"
-    assert choose_model_for_category("logic_puzzles", two) == "kimi-k2p7-code"
+    assert choose_model_for_category("logic_puzzles", two) == "minimax-m3"
     assert choose_model_for_category("named_entity_recognition", two) == "kimi-k2p7-code"
     assert _param_count("gemma-4-26b-a4b-it") == 4.0
     assert _param_count("gemma-4-31b-it") == 31.0
@@ -345,13 +420,24 @@ def _self_check() -> None:
     # Active-param awareness ranks the a4b MoE cheapest among unknown families.
     ranked = rank_models(["foo-9b-it", "foo-26b-a4b-it"])
     assert ranked[0] == "foo-26b-a4b-it", ranked
+    assert parse_allowed_models('["minimax-m3", "kimi-k2p7-code"]') == two
+    assert _serving_model_ids("minimax-m3") == (
+        "minimax-m3",
+        "accounts/fireworks/models/minimax-m3",
+    )
+    assert _serving_model_ids("accounts/team/models/custom") == (
+        "accounts/team/models/custom",
+    )
+    assert choose_default_model(["flux-image", "minimax-m3"]) == "minimax-m3"
     asyncio.run(_self_check_complete())
 
 
 async def _self_check_complete() -> None:
     global _post_json
-    os.environ.setdefault("FIREWORKS_BASE_URL", "http://stub.invalid/v1")
-    os.environ.setdefault("ALLOWED_MODELS", "minimax-m3,gemma-4-26b-a4b-it")
+    old_base = os.environ.get("FIREWORKS_BASE_URL")
+    old_models = os.environ.get("ALLOWED_MODELS")
+    os.environ["FIREWORKS_BASE_URL"] = "http://stub.invalid/v1"
+    os.environ["ALLOWED_MODELS"] = "minimax-m3,gemma-4-26b-a4b-it"
     real = _post_json
     call = RemoteCall(task_id="t1", category="math_reasoning", prompt="2+2?", max_tokens=8)
     try:
@@ -381,8 +467,47 @@ async def _self_check_complete() -> None:
         answer = await RemoteClient().complete(call)
         assert answer == "4", answer
         assert efforts_sent == [True, False], efforts_sent
+
+        # 3. Bare allowed IDs can require the canonical Fireworks serving prefix.
+        prefixed_models: list[str] = []
+
+        async def require_prefix(url, payload, headers, timeout):
+            prefixed_models.append(payload["model"])
+            if not payload["model"].startswith(MODEL_PREFIX):
+                raise RuntimeError("HTTP 404: model not found")
+            return {"choices": [{"message": {"content": "4"}}], "usage": {}}
+
+        _post_json = require_prefix
+        answer = await RemoteClient().complete(call)
+        assert answer == "4", answer
+        assert prefixed_models == ["minimax-m3", MODEL_PREFIX + "minimax-m3"], prefixed_models
+
+        # 4. A length-cut response is retried with a larger ceiling.
+        caps: list[int] = []
+
+        async def length_then_ok(url, payload, headers, timeout):
+            caps.append(int(payload["max_tokens"]))
+            finish = "length" if len(caps) == 1 else "stop"
+            content = "partial" if len(caps) == 1 else "complete"
+            return {
+                "choices": [{"message": {"content": content}, "finish_reason": finish}],
+                "usage": {},
+            }
+
+        _post_json = length_then_ok
+        answer = await RemoteClient().complete(call)
+        assert answer == "complete", answer
+        assert caps == [8, 136], caps
     finally:
         _post_json = real
+        if old_base is None:
+            os.environ.pop("FIREWORKS_BASE_URL", None)
+        else:
+            os.environ["FIREWORKS_BASE_URL"] = old_base
+        if old_models is None:
+            os.environ.pop("ALLOWED_MODELS", None)
+        else:
+            os.environ["ALLOWED_MODELS"] = old_models
 
 
 if __name__ == "__main__":

@@ -17,7 +17,6 @@ from agent.contracts import build_contracts
 from agent.gate import solve as gate_solve
 from agent.local_gate import try_local
 from agent.local_llm import make_local_client
-from agent.solvers.logic_solve import solve_certified_invalid
 
 
 @dataclass
@@ -130,11 +129,9 @@ async def _prepare_deterministic_one(
         answer = None
         if classification.confidence >= 0.6:
             answer = gate_solve(state.category, state.task.prompt)
-        if answer is None and state.category == "logic_puzzles":
-            answer = solve_certified_invalid(state.task.prompt)
         if answer is not None:
             state.answer = answer
-            state.source = "certified_invalid" if '"valid":false' in answer else "gate"
+            state.source = "gate"
             state.confidence = 1.0
         else:
             contract = contracts[state.category]

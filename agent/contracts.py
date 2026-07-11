@@ -3,25 +3,24 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from textwrap import shorten
 
 from agent.classify import CATEGORIES, canonical_category
 
 
 DEFAULT_MAX_TOKENS = {
-    "actual_qa": 120,
-    "math_reasoning": 10,
+    "actual_qa": 180,
+    "math_reasoning": 128,
     # sentiment aspect JSON (mixed + aspects{}) needs ~40 tokens; a cap of 2 truncated it
     # to nothing and the task could never score. A cap is a ceiling, not a spend — plain
     # labels still emit ~1 token and stop. (Issue 5 flag.)
-    "sentiment_analysis": 64,
-    # 80 truncated summaries mid-word (meeting summaries + action items run ~75 words
-    # ≈ 110 tokens). 220 is a ceiling, not a spend: short summaries still stop early.
-    "summarization": 220,
-    "named_entity_recognition": 60,
-    "logic_puzzles": 60,  # was 40 — declarative logic answers were truncated mid-sentence (3.1)
-    "code_debugging": 300,
-    "code_generation": 300,
+    "sentiment_analysis": 160,
+    # Small ceilings truncated summaries mid-word. A cap is not a spend: short summaries
+    # still stop early, while constrained reports retain room to finish.
+    "summarization": 400,
+    "named_entity_recognition": 200,
+    "logic_puzzles": 512,
+    "code_debugging": 1200,
+    "code_generation": 1200,
 }
 
 
@@ -66,45 +65,27 @@ def _normalize_caps(max_tokens: dict[str, int] | None) -> dict[str, int]:
 
 def compress_prompt(category: str, task_prompt: str) -> str:
     category = canonical_category(category)
-    text = re.sub(r"\s+", " ", task_prompt.strip())
+    raw = task_prompt.strip()
     if category == "summarization":
-        return _summary_kernel(text)
+        # Summaries are judged against all source facts and constraints. Any extractive
+        # kernel can silently discard a required middle sentence, so preserve the task.
+        return _bounded_prompt(raw, 12000)
     if category in {"code_debugging", "code_generation"}:
-        fenced = _extract_fenced_code(task_prompt)
-        if fenced:
-            return shorten(fenced, width=1600, placeholder=" ...")
-    width = 1200 if category != "actual_qa" else 900
-    return shorten(text, width=width, placeholder=" ...")
+        # The surrounding specification is correctness-bearing, and whitespace is
+        # syntax in languages such as Python. Preserve both instead of extracting and
+        # flattening only the fenced block.
+        return _bounded_prompt(raw, 12000)
+    text = re.sub(r"\s+", " ", raw)
+    return _bounded_prompt(text, 8000)
 
 
-def _unwrap_passage(body: str) -> str:
-    """Strip ONE wrapping quote pair. A regex like r"'([^']+)'" cannot be used: an inner
-    apostrophe ("In today's meeting") closes the group early and silently truncates the
-    passage to two words, which is what starved summary_004 in every prior run."""
-    body = body.strip()
-    if len(body) >= 2 and body[0] in "'\"" and body[-1] == body[0]:
-        return body[1:-1].strip()
-    return body
-
-
-def _summary_kernel(text: str) -> str:
-    constraint, sep, body = text.partition(":")
-    passage = _unwrap_passage(body) if sep else ""
-    if len(passage) < 40:  # no colon, or the passage lives before it
-        constraint, passage = text, _unwrap_passage(text)
-    sentences = re.split(r"(?<=[.!?])\s+", passage)
-    keep = [sentence.strip() for sentence in sentences if sentence.strip()][:5]
-    if len(sentences) > 5:
-        keep.append(sentences[-1].strip())
-    kernel = " ".join(keep)
-    words = kernel.split()
-    if len(words) > 140:
-        kernel = " ".join(words[:140])
-    return (
-        f"Constraint: {shorten(constraint, width=180, placeholder=' ...')}\n"
-        f"Extracted kernel (not raw passage): {kernel}\n"
-        "Return the final summary only."
-    )
+def _bounded_prompt(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    # Keep both the setup and the final question/constraints. This is only a guard
+    # against pathological inputs; normal benchmark prompts pass through unchanged.
+    half = (limit - len("\n[... middle omitted ...]\n")) // 2
+    return text[:half].rstrip() + "\n[... middle omitted ...]\n" + text[-half:].lstrip()
 
 
 _FENCE_BLOCK = re.compile(r"```[ \t]*[A-Za-z0-9_+#.-]*[ \t]*\n(.*?)\n?```", re.S)
@@ -250,7 +231,7 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
         "summarization": Contract(
             "summarization",
             caps["summarization"],
-            "Summarize the kernel as plain text. Keep every key fact, name, number, and action "
+            "Summarize the provided source as plain text. Keep every key fact, name, number, and action "
             "item. Obey the requested format, length, and any exclusion exactly. Output only the "
             "summary — no title, preamble, code fences, or [bracketed] placeholders.",
         ),
@@ -283,7 +264,12 @@ def _self_check() -> None:
     assert set(contracts) == set(CATEGORIES)
     assert contracts["math_reasoning"].max_tokens == 8
     assert "final number only" in contracts["math_reasoning"].remote_prompt("What is 2+2?")
-    assert "not raw passage" in contracts["summarization"].remote_prompt("Summarize: " + "word " * 300)
+    summary_prompt = "Summarize: first fact. middle required fact. final fact."
+    assert "middle required fact" in contracts["summarization"].remote_prompt(summary_prompt)
+    debug_prompt = "Fix the return value:\n```python\ndef f():\n    return 0\n```"
+    debug_kernel = compress_prompt("code_debugging", debug_prompt)
+    assert "Fix the return value" in debug_kernel
+    assert "def f():\n    return 0" in debug_kernel
 
     # sentiment: plain label -> compact JSON; aspect keys remapped to gold vocab
     sent = contracts["sentiment_analysis"]

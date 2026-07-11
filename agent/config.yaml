@@ -50,11 +50,11 @@ remote:
   usd_per_mtok: 0.9
   dev_spend_cap: 0.0
 max_tokens:
-  actual_qa: 40
-  math_reasoning: 10
-  sentiment_analysis: 80
-  summarization: 220
-  named_entity_recognition: 60
-  code_debugging: 300
-  logic_puzzles: 40
-  code_generation: 300
+  actual_qa: 180
+  math_reasoning: 128
+  sentiment_analysis: 160
+  summarization: 400
+  named_entity_recognition: 200
+  code_debugging: 1200
+  logic_puzzles: 512
+  code_generation: 1200
