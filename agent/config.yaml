@@ -43,7 +43,7 @@ batching:
   # Folds actual_qa/sentiment/ner into one request each, so minimax's ~119-token chat template
   # and the per-category contract are paid once instead of once per task. Lines that fail
   # validation are re-run individually, so a bad parse costs the un-batched price, not the task.
-  enabled: false
+  enabled: true
   # Requires repeated paid A/B evidence (zero pass-to-fail and >=145 actual tokens saved).
   code_enabled: false
   max_batch_size: 10
@@ -61,6 +61,11 @@ remote:
   classifier_model_category: summarization
   accuracy_first: true
   reasoning_effort: high
+  # Phase 1: direct-output work does not need hidden chain-of-thought. Adaptive
+  # categories retain high effort for coupled constraints, sarcasm, and exclusions.
+  reasoning_effort_by_category:
+    actual_qa: none
+    named_entity_recognition: adaptive
   usd_per_mtok: 0.9
   dev_spend_cap: 0.0
 max_tokens:

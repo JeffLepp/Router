@@ -395,9 +395,18 @@ def test_batcher_preserves_ner_entities() -> None:
         "2) Apple|ORGANIZATION; $3 billion|MONEY; Arm|ORGANIZATION",
     )
     assert not parsed.rerun
-    assert parsed.payloads["n1"] == "Elon Musk|PERSON\nToronto|LOCATION"
-    # This legacy batch format is intentionally preservation-only. The strict scorer no
-    # longer accepts it; the NER gold-schema migration is tested as a separate experiment.
+    assert json.loads(parsed.payloads["n1"]) == {
+        "entities": [
+            {"text": "Elon Musk", "type": "PERSON"},
+            {"text": "Toronto", "type": "LOCATION"},
+        ]
+    }
+    assert json.loads(parsed.payloads["n2"])["entities"][1] == {
+        "text": "$3 billion",
+        "type": "MONEY",
+    }
+    empty = parse_batch_response(calls[:1], "1) none|NONE")
+    assert json.loads(empty.payloads["n1"]) == {"entities": []}
 
 
 def test_mock_recognizes_batch_protocol() -> None:
@@ -433,7 +442,7 @@ def test_mock_recognizes_batch_protocol() -> None:
 
 
 def test_benchmark_accumulates_batch_rerun_tokens() -> None:
-    from scripts.live_benchmark import _ledger_by_task
+    from scripts.live_benchmark import _ledger_by_task, _token_attribution
 
     entries = [
         {
@@ -463,6 +472,24 @@ def test_benchmark_accumulates_batch_rerun_tokens() -> None:
     assert sum(entry["total_tokens"] for entry in uneven.values()) == 101
     assert sum(entry["prompt_tokens"] for entry in uneven.values()) == 80
     assert sum(entry["completion_tokens"] for entry in uneven.values()) == 21
+
+    attribution = _token_attribution(
+        [
+            {"task_id": "a", "category": "sentiment_analysis"},
+            {"task_id": "b", "category": "sentiment_analysis"},
+        ],
+        {"entries": entries},
+    )
+    answer = attribution["by_stage"]["answer"]
+    assert answer == {
+        "requests": 2,
+        "total_tokens": 130,
+        "prompt_tokens": 100,
+        "completion_tokens": 30,
+    }
+    assert attribution["by_category"]["sentiment_analysis"] == answer
+    assert attribution["retried_tasks"] == {"b": 2}
+    assert attribution["retry_request_count"] == 1
 
 
 def test_code_batch_partial_rerun() -> None:
@@ -528,12 +555,34 @@ def test_default_config_is_accuracy_first() -> None:
     assert config.remote_enabled is True
     assert config.gate_enabled is True
     assert config.gate_profile == "strict"
-    assert config.batching.get("enabled") is False
+    assert config.batching.get("enabled") is True
     assert config.remote.get("accuracy_first") is True
     assert config.remote.get("classifier_enabled") is True
+    efforts = config.remote.get("reasoning_effort_by_category")
+    assert efforts == {
+        "actual_qa": "none",
+        "named_entity_recognition": "adaptive",
+    }
 
     experiment = AgentConfig.from_path(ROOT / "agent" / "config.remote-classifier.yaml")
     assert experiment.remote.get("classifier_enabled") is True
+
+
+def test_adaptive_reasoning_governor() -> None:
+    from agent.remote import _adaptive_reasoning_effort
+
+    effort = lambda category, prompt: _adaptive_reasoning_effort(category, prompt, "high")
+    assert effort("actual_qa", "Who wrote The Left Hand of Darkness?") == "none"
+    assert effort("named_entity_recognition", "Extract every person and place.") == "none"
+    assert effort("named_entity_recognition", "List each location and event.") == "high"
+    assert effort("named_entity_recognition", "Washington can denote a place or person.") == "high"
+    assert effort("sentiment_analysis", "The battery lasts all day.") == "none"
+    assert effort("sentiment_analysis", "The screen is good, but the battery is awful.") == "high"
+    assert effort("sentiment_analysis", "Five stars for losing my luggage.") == "high"
+    assert effort("summarization", "Give the gist in one sentence: source") == "none"
+    assert effort("summarization", "List every action item in five bullet points: source") == "high"
+    assert effort("summarization", "Recap this without mentioning the conclusion: source") == "high"
+    assert effort("logic_puzzles", "A is before B. Who is first?") == "high"
 
 
 def test_remote_batch_classifier_overrides_routes() -> None:
@@ -656,6 +705,7 @@ def main() -> None:
         ("batch rerun token accounting", test_benchmark_accumulates_batch_rerun_tokens),
         ("code batch partial rerun", test_code_batch_partial_rerun),
         ("default config is accuracy-first", test_default_config_is_accuracy_first),
+        ("adaptive reasoning governor", test_adaptive_reasoning_governor),
         ("remote batch classifier overrides routes", test_remote_batch_classifier_overrides_routes),
         ("accuracy profile keeps strict arithmetic", test_accuracy_profile_keeps_only_strict_arithmetic),
     ]

@@ -311,6 +311,79 @@ def _route_of(task_id: str, gate_ids: set[str], remote_ids: set[str]) -> str:
     return "local/other"
 
 
+def _token_attribution(
+    tasks: list[dict[str, Any]], ledger: dict[str, Any]
+) -> dict[str, Any]:
+    """Summarize actual provider usage without changing the judged runtime path."""
+    categories = {
+        str(task.get("task_id") or task.get("id") or f"task_{index}"): str(
+            task.get("category", "unknown")
+        )
+        for index, task in enumerate(tasks)
+    }
+    dimensions = {
+        "by_stage": defaultdict(Counter),
+        "by_category": defaultdict(Counter),
+        "by_model": defaultdict(Counter),
+        "by_reasoning_effort": defaultdict(Counter),
+    }
+    attempts_by_task: Counter[str] = Counter()
+
+    for entry in ledger.get("entries", []):
+        task_id = str(entry.get("task_id", ""))
+        stage = str(
+            entry.get("stage")
+            or ("classifier" if task_id.startswith("classifier:") else "answer")
+        )
+        category = str(entry.get("category") or "")
+        if not category and stage == "answer":
+            members = (
+                [member for member in task_id.split(":", 1)[1].split(",") if member]
+                if task_id.startswith("batch:")
+                else [task_id]
+            )
+            member_categories = {categories.get(member, "unknown") for member in members}
+            category = next(iter(member_categories)) if len(member_categories) == 1 else "mixed"
+        if stage == "classifier":
+            category = "classifier"
+        model = str(entry.get("model") or "unknown")
+        effort = str(entry.get("reasoning_effort") or "unknown")
+        values = {
+            "requests": 1,
+            "total_tokens": int(entry.get("total_tokens", 0) or 0),
+            "prompt_tokens": int(entry.get("prompt_tokens", 0) or 0),
+            "completion_tokens": int(entry.get("completion_tokens", 0) or 0),
+        }
+        for dimension, key in (
+            ("by_stage", stage),
+            ("by_category", category or "unknown"),
+            ("by_model", model),
+            ("by_reasoning_effort", effort),
+        ):
+            dimensions[dimension][key].update(values)
+        if stage == "answer":
+            members = (
+                [member for member in task_id.split(":", 1)[1].split(",") if member]
+                if task_id.startswith("batch:")
+                else [task_id]
+            )
+            for member in members:
+                attempts_by_task[member] += 1
+
+    def plain(rows: defaultdict[str, Counter[str]]) -> dict[str, dict[str, int]]:
+        return {
+            key: {metric: int(value) for metric, value in counts.items()}
+            for key, counts in sorted(rows.items())
+        }
+
+    retried = {task_id: count for task_id, count in attempts_by_task.items() if count > 1}
+    return {
+        **{name: plain(rows) for name, rows in dimensions.items()},
+        "retried_tasks": dict(sorted(retried.items())),
+        "retry_request_count": sum(count - 1 for count in retried.values()),
+    }
+
+
 def _acc_rate(bucket: dict[str, dict[str, int]]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for key, counts in sorted(bucket.items()):
@@ -334,7 +407,15 @@ def _score(
 
     by_result = {str(row.get("task_id")): str(row.get("answer", "")) for row in results}
     ledger_by_task = _ledger_by_task(ledger.get("entries", []))
-    remote_ids = set(ledger_by_task)
+    task_ids = {
+        str(task.get("task_id") or task.get("id") or f"task_{index}")
+        for index, task in enumerate(tasks)
+    }
+    remote_ids = set(ledger_by_task) & task_ids
+    # The benchmark recomputes potential deterministic answers, but a remotely classified
+    # category can legitimately defer one of those tasks. Count sources as exclusive based on
+    # the actual remote ledger rather than reporting the same task as both gate and remote.
+    gate_ids = set(gate_ids) - remote_ids
     per_category: dict[str, Counter[str]] = defaultdict(Counter)
     failures: list[dict[str, Any]] = []
     by_route: dict[str, dict[str, int]] = defaultdict(lambda: {"passed": 0, "scored": 0})
@@ -445,6 +526,31 @@ def _print_report(report: dict[str, Any], max_failures: int) -> None:
     print(f"errors      remote={report['remote_errors']}")
     print(f"wall        {report['wall_s']:.2f}s")
     print(f"out_dir     {report['out_dir']}")
+
+    attribution = report.get("token_attribution", {})
+    by_stage = attribution.get("by_stage", {})
+    if by_stage:
+        print("\n| token stage | requests | prompt | completion | total |")
+        print("|-------------|---------:|-------:|-----------:|------:|")
+        for stage, row in by_stage.items():
+            print(
+                f"| {stage} | {row.get('requests', 0)} | {row.get('prompt_tokens', 0)} | "
+                f"{row.get('completion_tokens', 0)} | {row.get('total_tokens', 0)} |"
+            )
+
+    by_category = attribution.get("by_category", {})
+    if by_category:
+        print("\n| token category | requests | prompt | completion | total |")
+        print("|----------------|---------:|-------:|-----------:|------:|")
+        for category, row in by_category.items():
+            print(
+                f"| {category} | {row.get('requests', 0)} | {row.get('prompt_tokens', 0)} | "
+                f"{row.get('completion_tokens', 0)} | {row.get('total_tokens', 0)} |"
+            )
+        print(
+            f"\nretry requests {attribution.get('retry_request_count', 0)} "
+            f"across {len(attribution.get('retried_tasks', {}))} tasks"
+        )
 
     print("\n| category | pass | scored | total | gate | remote | unscored |")
     print("|----------|-----:|-------:|------:|-----:|-------:|---------:|")
@@ -590,6 +696,7 @@ def main() -> int:
     ledger = _read_json(work / "output" / "ledger.json", {})
     gate_ids = asyncio.run(_gate_proven_ids(tasks))
     score = _score(tasks, results, ledger, gate_ids, args.score_judge)
+    token_attribution = _token_attribution(tasks, ledger)
     remote_errors = proc.stderr.count("remote_error ")
     report = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -603,6 +710,7 @@ def main() -> int:
         "stderr_tail": proc.stderr[-4000:],
         "remote_errors": remote_errors,
         "ledger": ledger,
+        "token_attribution": token_attribution,
         "score": score,
     }
     _copy_artifacts(work, out_dir, report)

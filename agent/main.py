@@ -214,6 +214,9 @@ def _make_remote_client(config: AgentConfig) -> Any:
         temperature=float(config.remote.get("temperature", 0)),
         accuracy_first=bool(config.remote.get("accuracy_first", False)),
         reasoning_effort=str(config.remote.get("reasoning_effort", "none") or ""),
+        reasoning_effort_by_category=dict(
+            config.remote.get("reasoning_effort_by_category", {}) or {}
+        ),
         usd_per_mtok=float(config.remote.get("usd_per_mtok", 0) or 0),
         dev_spend_cap=float(config.remote.get("dev_spend_cap", 0) or 0),
     )
@@ -311,6 +314,12 @@ async def _run_remote(
             max_tokens=state.remote_max_tokens,
             flip_value=max(0.05, 1.0 - state.confidence),
             mandatory=config.mandatory_remote > 0,
+            reasoning_effort=remote_module.resolve_reasoning_effort(
+                state.category,
+                state.remote_prompt,
+                str(config.remote.get("reasoning_effort", "none") or ""),
+                dict(config.remote.get("reasoning_effort_by_category", {}) or {}),
+            ),
         )
         for state in deferred
     ]

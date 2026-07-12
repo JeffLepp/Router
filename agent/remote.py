@@ -57,6 +57,7 @@ class RemoteCall:
     max_tokens: int
     flip_value: float = 1.0
     mandatory: bool = False
+    reasoning_effort: str | None = None
 
     @property
     def estimated_tokens(self) -> int:
@@ -73,7 +74,18 @@ class TokenLedger:
     requests: int = 0
     entries: list[dict[str, Any]] = field(default_factory=list)
 
-    def add(self, task_id: str, model: str, usage: dict[str, Any], estimated: int) -> None:
+    def add(
+        self,
+        task_id: str,
+        model: str,
+        usage: dict[str, Any],
+        estimated: int,
+        *,
+        category: str = "",
+        stage: str = "answer",
+        reasoning_effort: str = "",
+        attempt: int = 0,
+    ) -> None:
         prompt = int(usage.get("prompt_tokens", 0) or 0)
         completion = int(usage.get("completion_tokens", 0) or 0)
         total = int(usage.get("total_tokens", 0) or 0) or estimated
@@ -88,6 +100,10 @@ class TokenLedger:
                 "total_tokens": total,
                 "prompt_tokens": prompt,
                 "completion_tokens": completion,
+                "category": category,
+                "stage": stage,
+                "reasoning_effort": reasoning_effort or "none",
+                "attempt": attempt,
             }
         )
 
@@ -208,6 +224,7 @@ class RemoteClient:
         temperature: float = 0.0,
         accuracy_first: bool = False,
         reasoning_effort: str = "none",
+        reasoning_effort_by_category: dict[str, str] | None = None,
         usd_per_mtok: float = 0.0,
         dev_spend_cap: float = 0.0,
     ) -> None:
@@ -219,6 +236,10 @@ class RemoteClient:
         self.temperature = temperature
         self.accuracy_first = accuracy_first
         self.reasoning_effort = reasoning_effort
+        self.reasoning_effort_by_category = {
+            canonical_category(str(category)): str(effort)
+            for category, effort in (reasoning_effort_by_category or {}).items()
+        }
         self.dev_spend_cap = dev_spend_cap
         self.ledger = TokenLedger(usd_per_mtok=usd_per_mtok)
         # Models that rejected `reasoning_effort`; we stop sending it to them.
@@ -231,6 +252,18 @@ class RemoteClient:
     def _usable_models(self) -> list[str]:
         alive = [model for model in self.models if model not in self._dead_models]
         return alive or self.models
+
+    def _reasoning_effort(self, model: str, call: RemoteCall) -> str:
+        if model in self._no_reasoning_param or call.task_id.startswith("classifier:"):
+            return ""
+        if call.reasoning_effort is not None:
+            return call.reasoning_effort
+        return resolve_reasoning_effort(
+            call.category,
+            call.prompt,
+            self.reasoning_effort,
+            self.reasoning_effort_by_category,
+        )
 
     def _payload(self, model: str, call: RemoteCall) -> dict[str, Any]:
         payload = {
@@ -246,8 +279,9 @@ class RemoteClient:
             "max_tokens": call.max_tokens,
             "stop": ["\n\n\n"],
         }
-        if self.reasoning_effort and model not in self._no_reasoning_param:
-            payload["reasoning_effort"] = self.reasoning_effort
+        effort = self._reasoning_effort(model, call)
+        if effort:
+            payload["reasoning_effort"] = effort
         return payload
 
     async def complete(self, call: RemoteCall) -> str:
@@ -283,7 +317,17 @@ class RemoteClient:
                 )
                 content = _message_content(data).strip()
                 usage = dict(data.get("usage", {}) or {})
-                self.ledger.add(call.task_id, model, usage, call.estimated_tokens)
+                actual_effort = self._reasoning_effort(model, call)
+                self.ledger.add(
+                    call.task_id,
+                    model,
+                    usage,
+                    call.estimated_tokens,
+                    category=canonical_category(call.category),
+                    stage="classifier" if call.task_id.startswith("classifier:") else "answer",
+                    reasoning_effort=actual_effort,
+                    attempt=attempt,
+                )
                 # A blank or structurally truncated completion scores zero (code models can
                 # burn most of the budget in hidden reasoning), so spend one retry on the
                 # next validated model before returning it.
@@ -303,8 +347,7 @@ class RemoteClient:
             except BaseException as exc:
                 last_error = exc
                 if (
-                    self.reasoning_effort
-                    and model not in self._no_reasoning_param
+                    self._reasoning_effort(model, call)
                     and _param_rejection(exc)
                 ):
                     self._no_reasoning_param.add(model)
@@ -323,6 +366,60 @@ class RemoteClient:
                     break
                 await asyncio.sleep(min(0.25 * (2**attempt), 1.0))
         raise RuntimeError(f"remote call failed: {last_error}")
+
+
+_COMPLEX_SUMMARY_RE = re.compile(
+    r"\b(?:action items?|follow[- ]?ups?|assigned tasks?|every follow|exactly|"
+    r"leave out|omit|exclude|without (?:stating|mentioning|including)|do not include|"
+    r"bullet points?|structured report|table)\b",
+    re.I,
+)
+_COMPLEX_SENTIMENT_RE = re.compile(
+    r"\b(?:sarcasm|sarcastic|irony|ironic|aspect|but|yet|though|however|despite|"
+    r"five stars|what a bargain|truly impressive)\b",
+    re.I,
+)
+_COMPLEX_NER_RE = re.compile(
+    r"\b(?:events?|ambiguous|ambiguity|can (?:denote|refer to|mean|belong to)|"
+    r"same name|proper nouns?|metonym|fictional|real person)\b",
+    re.I,
+)
+
+
+def _adaptive_reasoning_effort(category: str, prompt: str, default: str) -> str:
+    """Spend reasoning only where direct-output instructions contain real coupling.
+
+    QA and NER are retrieval/extraction tasks, so hidden reasoning adds cost without a
+    verification benefit. Sentiment keeps reasoning for mixed/aspect/sarcastic language.
+    Summaries keep it for exclusion, exact-structure, and action-item constraints.
+    """
+    category = canonical_category(category)
+    if category == "actual_qa":
+        return "none"
+    if category == "named_entity_recognition":
+        return default if _COMPLEX_NER_RE.search(prompt) else "none"
+    if category == "sentiment_analysis":
+        return default if _COMPLEX_SENTIMENT_RE.search(prompt) else "none"
+    if category == "summarization":
+        return default if _COMPLEX_SUMMARY_RE.search(prompt) else "none"
+    return default
+
+
+def resolve_reasoning_effort(
+    category: str,
+    prompt: str,
+    default: str,
+    by_category: dict[str, str] | None = None,
+) -> str:
+    configured = {
+        canonical_category(str(key)): str(value)
+        for key, value in (by_category or {}).items()
+    }.get(canonical_category(category))
+    if configured == "adaptive":
+        return _adaptive_reasoning_effort(category, prompt, default)
+    if configured is not None:
+        return configured
+    return default
 
 
 def _other_model(

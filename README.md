@@ -67,6 +67,18 @@ IDs, and every remote request goes through the supplied base URL.
 The local variant scores are regression gates, not claims about the hidden set.
 The official 89.5% result remains the decision anchor.
 
+The Phase 1 direct-output compression candidate combines two related changes:
+QA uses no hidden reasoning, NER defers ambiguity/event prompts to high effort,
+and QA/sentiment/NER share category batches with per-row validation and individual
+fallback. On the paired 160-task release gate it preserved 154/160 judged passes,
+reduced tokens from 83,977 to 69,128 (-17.7%), reduced requests from 169 to 123,
+and produced zero remote errors. A post-fix NER sentinel gate passed 10/10.
+
+The calibrated official forecast is about 11,524 tokens from the approximate
+14,000-token baseline. Approaching 1,500 tokens will still require selective
+local answering; classifier replacement alone targets only the 17.1% classifier
+share measured before Phase 1.
+
 ## Input/output contract
 
 The container reads `/input/tasks.json`:
@@ -105,6 +117,13 @@ Run paid variant gates only after local checks pass:
 ```powershell
 python -m scripts.live_benchmark --dataset eval\devset\variants2.json --score-judge --remote-timeout 90 --env-file .env.local --out-dir benchmark_runs\live-candidate-v2
 python -m scripts.live_benchmark --dataset eval\devset\variants3.json --score-judge --remote-timeout 90 --env-file .env.local --out-dir benchmark_runs\live-candidate-v3
+```
+
+Forecast the official token delta from paired control/candidate reports, then
+append the real result to `submission_history.csv`:
+
+```powershell
+python -m scripts.submission_forecast --baseline <control-v2.json> <control-v3.json> --candidate <candidate-v2.json> <candidate-v3.json>
 ```
 
 ## Docker submission

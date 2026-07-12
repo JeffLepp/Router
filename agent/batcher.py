@@ -50,13 +50,15 @@ def make_batches(
     calls: list[RemoteCall], max_batch_size: int = 10, code_enabled: bool = False
 ) -> list[list[RemoteCall]]:
     batches: list[list[RemoteCall]] = []
-    current_by_category: dict[str, list[RemoteCall]] = {}
+    current_by_category: dict[tuple[str, str | None], list[RemoteCall]] = {}
     for call in calls:
         category = canonical_category(call.category)
         if not is_batchable(call, code_enabled=code_enabled):
             batches.append([call])
             continue
-        bucket = current_by_category.setdefault(category, [])
+        # Never let one ambiguity-sensitive high-effort item make an entire direct-output
+        # batch reason, and never downgrade it into a no-reasoning batch.
+        bucket = current_by_category.setdefault((category, call.reasoning_effort), [])
         bucket.append(call)
         if len(bucket) >= max_batch_size:
             batches.append(bucket[:])
@@ -91,6 +93,7 @@ def build_batch_call(calls: list[RemoteCall]) -> RemoteCall:
         max_tokens=max_tokens,
         flip_value=sum(call.flip_value for call in calls),
         mandatory=any(call.mandatory for call in calls),
+        reasoning_effort=calls[0].reasoning_effort,
     )
 
 
@@ -242,7 +245,14 @@ def _payload_valid(category: str, payload: str) -> bool:
 def _normalize_batch_payload(category: str, payload: str) -> str:
     """Convert category-specific one-line batch encodings to normal contract payloads."""
     if category == "named_entity_recognition":
-        return "\n".join(part.strip() for part in payload.split(";") if part.strip())
+        entities = []
+        for part in payload.split(";"):
+            text, separator, entity_type = part.strip().rpartition("|")
+            if separator and text and entity_type:
+                if text.strip().casefold() in {"none", "no entities", "no entity"}:
+                    continue
+                entities.append({"text": text.strip(), "type": entity_type.strip()})
+        return json.dumps({"entities": entities}, separators=(",", ":"), ensure_ascii=False)
     return payload
 
 
@@ -329,10 +339,17 @@ def _self_check() -> None:
     assert not _payload_valid("sentiment_analysis", '{"sentiment":"banana"}')
 
     # NER uses semicolons only to keep each batch member on one line. Restore the normal
-    # newline-delimited contract payload before Contract.assemble and eval.score see it.
+    # JSON contract payload before Contract.assemble and eval.score see it.
     ner = [RemoteCall("n1", "named_entity_recognition", "p", 60)]
     ner_got = parse_batch_response(ner, "1) Elon Musk|PERSON; Toronto|LOCATION")
-    assert ner_got.payloads["n1"] == "Elon Musk|PERSON\nToronto|LOCATION"
+    assert json.loads(ner_got.payloads["n1"]) == {
+        "entities": [
+            {"text": "Elon Musk", "type": "PERSON"},
+            {"text": "Toronto", "type": "LOCATION"},
+        ]
+    }
+    empty_ner = parse_batch_response(ner, "1) none|NONE")
+    assert json.loads(empty_ner.payloads["n1"]) == {"entities": []}
 
     code_calls = [
         RemoteCall(f"c{i}", "code_generation", f"Write a Python function f{i}.", 100)

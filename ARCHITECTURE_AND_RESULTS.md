@@ -106,7 +106,7 @@ suspect for an answer-quality regression.
 
 ## Token optimization roadmap
 
-### Experiment 1 - establish token attribution
+### Phase 0 - token attribution (implemented)
 
 Use the existing ledger to report tokens by:
 
@@ -116,10 +116,48 @@ Use the existing ledger to report tokens by:
 - model;
 - retries/fallbacks.
 
-The official token count must be recorded on the next submission. Without it,
-rank movement cannot be attributed to a local estimate.
+New ledger entries retain stage, category, model, reasoning effort, and attempt.
+`scripts/live_benchmark.py` reports classifier and answer usage separately and
+stores the same attribution in `benchmark.json`.
 
-### Experiment 2 - local classifier, remote uncertainty fallback
+Measured across the two 80-task release gates:
+
+| Stage | Tokens | Share |
+|---|---:|---:|
+| Remote classifier | 14,342 | 17.1% |
+| Remote answers | 69,635 | 82.9% |
+
+Answer completion tokens alone were 37,449, so the current global `high`
+reasoning setting is a larger target than the classifier. The next submission
+must replace the approximate 14,000 official-token figure with the exact value.
+
+### Phase 1 - direct-output compression (submission candidate)
+
+This phase combines one coherent direct-output policy:
+
+- QA uses `reasoning_effort=none`;
+- NER uses `none` for direct extraction but retains `high` for event and
+  ambiguity prompts;
+- QA, sentiment, and NER are batched by category and reasoning level;
+- every batch row is validated and malformed rows rerun individually;
+- NER batch payloads are converted to the exact JSON schema, including empty
+  `none|NONE` responses.
+
+Paired release result: 154/160 judged passes for both control and candidate,
+83,977 -> 69,128 tokens (-17.7%), 169 -> 123 requests, zero remote errors.
+The final empty-entity fix then passed the affected variants3 NER set 10/10.
+The approximate official-token forecast is 11,524.
+
+### Phase 2 - selective local answering
+
+The image is only about 0.08 GB against a 10 GB allowance, and the remote-only
+runtime leaves substantial time inside the ten-minute limit. Test a bundled
+quantized 1.5B-3B local answer model with accept-or-defer verification. Start
+with short QA, sentiment, and code tasks; force uncertain, long, or structurally
+complex prompts back to the current remote path. This is the first phase capable
+of moving toward the leaders' roughly 1,500-token range.
+
+### Phase 3 - local classifier, remote uncertainty fallback
 
 Bundle a small CPU classifier such as an ONNX encoder. Do not use a multi-GB
 chat model merely because the image limit allows it. Required gate:
@@ -129,33 +167,23 @@ chat model merely because the image limit allows it. Required gate:
 - low-confidence prompts use the current remote batch classifier;
 - no change to downstream category routes.
 
-This removes one remote classifier request and its prompt tokens while keeping
-the proven classifier as a safety net.
+This removes the classifier's roughly 17% local-release share while keeping the
+proven classifier as a safety net. It is useful, but it is not the first or
+largest saving.
 
-### Experiment 3 - per-category reasoning effort
+### Phase 4 - broader remote batching
 
-The current profile requests high reasoning globally. Add category-specific
-effort and test one category at a time:
+After local offload is measured, test two model-oriented remote batches for the
+remaining tasks. Preserve per-item contracts and fall back individually on any
+malformed or unverifiable row.
 
-- first candidates for lower effort: sentiment, NER, summarization, simple QA;
-- retain high effort initially: math, logic, debugging, generation.
-
-Measure actual completion-token change. A lower setting that causes one extra
-hidden miss consumes the entire safe accuracy margin.
-
-### Experiment 4 - answer batching
-
-Batch only one low-coupling category per experiment. Sentiment and NER are the
-first candidates because their schemas are short and machine-checkable. Every
-row must be independently validated and malformed rows must rerun individually.
-
-### Experiment 5 - cap tuning
+### Phase 5 - cap tuning
 
 Completion caps are ceilings, not guaranteed spend. Lower them only when the
 ledger shows a meaningful long tail and truncation detection is available.
 Use observed p95/p99 completions rather than arbitrary round numbers.
 
-### Experiment 6 - additional zero-token answers
+### Phase 6 - additional zero-token answers
 
 Promote a deterministic or local answer only after 100% precision on applicable
 public and OOD cases. A wrong local answer cannot be rescued by Fireworks.
@@ -177,6 +205,22 @@ public and OOD cases. A wrong local answer cannot be rescued by Fireworks.
 For the 19-task official set, prefer candidates that preserve all known answers.
 If an official experiment falls to 84.2%, stop spending the last task of margin
 until the regression is understood.
+
+## Submission-calibrated forecasting
+
+Each behavior-changing phase gets its own immutable image and official AMD
+submission. Record it in `submission_history.csv`. Forecast the next result with
+the paired local token ratio and local accuracy delta:
+
+```powershell
+python -m scripts.submission_forecast --baseline <v2-control.json> <v3-control.json> --candidate <v2-candidate.json> <v3-candidate.json>
+```
+
+The token prediction is `14,000 x candidate/control local token ratio` until an
+exact official baseline is entered. Accuracy stays anchored to 17/19 and uses
+only the paired local delta; the printed one-task sensitivity matters because
+16/19 is 84.2% and 15/19 is 78.9%. Local absolute accuracy is not treated as a
+hidden-score estimator.
 
 ## Retired guidance
 

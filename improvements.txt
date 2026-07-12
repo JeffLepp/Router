@@ -46,13 +46,33 @@ NEXT TOKEN EXPERIMENTS
 ======================
 Run exactly one lever per candidate:
 
-1. Token attribution by classifier/category/model/prompt/completion/retry.
-2. Small local ONNX classifier with remote fallback below confidence threshold.
+0. DONE: attribution by classifier/category/model/prompt/completion/retry.
+   The classifier used 14,342/83,977 tokens (17.1%) across the two release gates;
+   answer calls used 69,635 (82.9%).
+1. READY TO SUBMIT: direct-output compression.
+   - QA no reasoning; NER adaptive no/high reasoning.
+   - QA/sentiment/NER batching with per-row fallback.
+   - 154/160 judged unchanged; 83,977 -> 69,128 tokens (-17.7%).
+   - 169 -> 123 requests; zero remote errors.
+   - Final variants3 NER sentinel gate: 10/10.
+   - Official forecast: about 11,524 tokens and 89.5% accuracy.
+2. Bundled quantized 1.5B-3B local answer model with accept-or-defer gating.
+   Use the available image size and runtime; this is required to approach 1,500.
+3. Small local ONNX classifier with remote fallback below confidence threshold.
    Promotion requirement: retain 160/160 classifier accuracy.
-3. Per-category reasoning effort, starting with sentiment, NER, summary, and QA.
-4. Same-category answer batching with per-row validation and individual reruns.
+4. Broader model-oriented remote batching with per-item validation.
 5. Completion-cap reductions based on measured p95/p99 usage.
 6. Additional deterministic/local answers only at 100% OOD precision.
+
+OFFICIAL SUBMISSION LOOP
+========================
+Every behavior-changing phase gets a unique Docker tag and AMD submission.
+Record prediction and result in submission_history.csv. Forecast with:
+
+python -m scripts.submission_forecast --baseline <control-v2> <control-v3> --candidate <candidate-v2> <candidate-v3>
+
+Token prediction uses the paired local token ratio. Accuracy remains anchored
+to 17/19 because local absolute accuracy did not track the hidden set.
 
 PROMOTION RULE
 ==============
