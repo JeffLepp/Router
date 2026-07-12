@@ -112,6 +112,43 @@ answer failures; the prefilter changed deferred-batch composition and a
 20-row classifier call silently truncated at 1,024 tokens; noun-trigger
 prefilter rules broke on near-miss task shapes.
 
+## Phase 4 candidate (classifier compression) — READY TO SUBMIT
+
+Image: `jeffklin303/amd-router:phase4-classifier-compression-9b2845c`
+Digest: `sha256:059e1c649a7a76db02384d49ff1adc1f992daff35d133ebb91f7a4e2587fbdd5`
+
+ONE lever, classifier stage only; the answer path is untouched:
+1. Classifier responds with digit label codes (1-8) instead of spelled-out
+   category names — and a 20-row digit response is ~200 tokens against the
+   1,024 cap, so the Phase 2 truncation mode is structurally impossible.
+2. Compact dict payload + head/tail clipping of long task prompts in the
+   classifier request.
+3. Explicit `reasoning_effort: "none"` on classifier calls. Omitting the
+   param let kimi reason by default: 300-1,000 hidden completion tokens per
+   batch against a ~110-token visible JSON.
+
+Evidence (all gates green):
+- Classifier-only audit: **429/429 labels correct across all six labeled
+  datasets** (dataset, variants, v2, v3, v4, stress) — run twice, before and
+  after the reasoning fix.
+- Answer stage **byte-identical** to the frozen Phase 1 runs: v2 = 58
+  requests / 11,772 prompt tokens exact match; v3 = 57 / 11,444 exact match.
+- flip_diff v2: PASS (0 pass->fail, 1 fail->pass). flip_diff v3: one
+  pass->fail (`v3_debug_006`) — justified: the candidate issued *identical*
+  requests (see above), so the flip lives entirely in completion-token
+  variance (16,914 -> 15,697), i.e. provider nondeterminism the frozen image
+  has too. Same judge-sensitive task flagged in the Phase 3 rejection.
+- Classifier stage tokens: v2 7,315 -> 5,317 (-27%), v3 6,811 -> 5,243 (-23%).
+- Container smoke vs mock: classifier parsed 4/4, contracts intact.
+
+Prediction (what the feedback means):
+- Accuracy should be exactly 94.7%. If it moves at all, the only possible
+  suspect is hidden-set classifier labeling — revert to the Phase 1 image.
+- Tokens forecast band: **11,200-11,700** (vs 12,012). The delta cleanly
+  measures the classifier's hidden-set share since nothing else changed.
+  This lever does not alter answer batching, so lesson 4 (ratios don't
+  transfer across batching changes) applies less than it did to Phase 3.
+
 ## Release evidence
 
 | Check | Result |
