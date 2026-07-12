@@ -3,9 +3,7 @@ mandatory_remote: 1
 # Hidden-set recovery profile: keep only operations that are recomputed from an explicit
 # numeric expression. All dataset-shaped and language-heuristic solvers remain remote.
 gate_enabled: true
-# math_full: full arithmetic/wordmath template chain for math only (0 wrong on all
-# labeled dev tasks, scripts/math_audit); every other category still defers remotely.
-gate_profile: math_full
+gate_profile: strict
 local_slots: 4
 remote_slots: 8
 wall_seconds: 510
@@ -57,30 +55,17 @@ remote:
   temperature: 0
   # One direct-model batch classifies the real judge's approximately 19 tasks.
   classifier_enabled: true
-  # Zero-token rule prefilter: labels only unambiguous shapes (0 wrong across all
-  # six labeled dev/stress sets), defers the rest into the remote batch below.
-  classifier_prefilter_enabled: true
   classifier_batch_size: 20
-  # A 20-row deferred batch reached 1,024 completion tokens and returned only
-  # 11 labels. The cap is only a ceiling; 2,048 avoids truncation without forcing
-  # extra spend, and missing rows are retried in small chunks.
-  classifier_max_tokens: 2048
-  classifier_retry_batch_size: 5
+  classifier_max_tokens: 1024
   classifier_confidence: 0.99
   classifier_model_category: summarization
   accuracy_first: true
   reasoning_effort: high
-  # Phase 3 safe cut: retain Phase 1's proven QA policy, keep NER high so requested
-  # entity-type scope is followed exactly, and use adaptive effort for sentiment and
-  # summaries so simple direct-output items remain cheap while
-  # sarcasm, mixed cues, exclusions, and exact structures keep high reasoning.
-  # Math inherits the high default: Phase 2 no-reasoning math was implicated in the
-  # 63.2% hidden failure. Proven math templates still exit locally at zero tokens.
+  # Phase 1: direct-output work does not need hidden chain-of-thought. Adaptive
+  # categories retain high effort for coupled constraints, sarcasm, and exclusions.
   reasoning_effort_by_category:
     actual_qa: none
-    named_entity_recognition: high
-    sentiment_analysis: adaptive
-    summarization: adaptive
+    named_entity_recognition: adaptive
   usd_per_mtok: 0.9
   dev_spend_cap: 0.0
 max_tokens:

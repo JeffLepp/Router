@@ -5,21 +5,12 @@ import re
 from decimal import Decimal, DivisionByZero, InvalidOperation
 from fractions import Fraction
 
-from agent.solvers.common import NUMBER_WORDS, UNANSWERABLE, format_decimal, normalize, parse_number
+from agent.solvers.common import UNANSWERABLE, format_decimal, normalize, parse_number
 from agent.verify.math_v import safe_eval
 
 
 _SAFE_EXPR_RE = re.compile(r"^[\d\s().+\-*/^]+$")
 _NUM = r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?"
-
-# A trailing verbal operation ("15% of 200, plus 30") means the matched template is only a
-# sub-expression of the real question; answering it confidently is a hidden-set miss.
-_TRAILING_OP = re.compile(r"\b(plus|minus|times|divided by|added|less)\b", re.I)
-
-
-def _leftover_digits(text: str, used: tuple[str, ...]) -> bool:
-    """True when the prompt holds numbers the matched template did not consume."""
-    return bool(set(re.findall(_NUM, text)) - {u for u in used if u})
 
 
 def solve(prompt: str) -> str | None:
@@ -32,11 +23,9 @@ def solve(prompt: str) -> str | None:
     for handler in (
         _triangle_area,
         _quadratic_roots,
-        _probability_two_draw,
+        _probability_without_replacement,
         _percent_of,
-        _power_phrase,
         _square_of,
-        _op_chain,
         _give_away,
         _average,
         _direct_expression,
@@ -63,10 +52,9 @@ def solve_strict(prompt: str) -> str | None:
 
 
 def _is_division_by_zero(lower: str) -> bool:
-    # "/ 0.5" is a legitimate divisor, so a digit or decimal point after the 0 must not fire.
     return bool(
         re.search(r"\b(divided by|divide by|division by)\s+zero\b", lower)
-        or re.search(r"[/]\s*0(?:[^.\d]|$)", lower)
+        or re.search(r"[/]\s*0(?:\D|$)", lower)
     )
 
 
@@ -92,8 +80,7 @@ def _triangle_area(text: str) -> str | None:
 def _quadratic_roots(text: str) -> str | None:
     compact = re.sub(r"\s+", "", normalize(text).lower())
     compact = compact.replace("**2", "^2")
-    # A digit before x^2 is a leading coefficient this monic template does not model.
-    match = re.search(r"(?<![\dx.])x\^2([+-]\d*)x([+-]\d+)=0", compact)
+    match = re.search(r"x\^2([+-]\d*)x([+-]\d+)=0", compact)
     if not match:
         return None
     b_raw, c_raw = match.groups()
@@ -117,27 +104,15 @@ def _signed_coeff(raw: str) -> int:
     return int(raw)
 
 
-_TWO_DRAW_CUE = re.compile(
-    r"without replacement|without putting|without returning|at once|at the same time|"
-    r"one after the other|simultaneously",
-    re.I,
-)
-
-
-def _probability_two_draw(text: str) -> str | None:
+def _probability_without_replacement(text: str) -> str | None:
     lower = text.lower()
-    if "probability" not in lower or not _TWO_DRAW_CUE.search(lower):
-        return None
-    # Compound events ("both red or both blue", "same color") need more than one branch.
-    if re.search(r"\bor\b|same colou?r|different", lower):
+    if "without replacement" not in lower or "probability" not in lower:
         return None
     color_counts = {
         color: int(count.replace(",", ""))
         for count, color in re.findall(rf"({_NUM})\s+(red|blue|green|yellow|black|white)", lower)
     }
-    match = re.search(r"both(?:\s+\w+)?\s+(?:are|will be|come out)\s+(\w+)", lower) or re.search(
-        r"both\s+(\w+)", lower
-    )
+    match = re.search(r"both(?:\s+are)?\s+(\w+)", lower)
     if not color_counts or not match:
         return None
     wanted = match.group(1)
@@ -155,91 +130,13 @@ def _percent_of(text: str) -> str | None:
     match = re.search(rf"(?:what is\s+)?({_NUM})\s*(?:%|percent)\s+of\s+({_NUM})", lower)
     if not match:
         return None
-    if _leftover_digits(lower, match.groups()) or _TRAILING_OP.search(lower):
-        return None
     pct, base = (parse_number(part) for part in match.groups())
     return format_decimal(base * pct / Decimal(100))
-
-
-_POWER_WORDS = {"second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6}
-
-
-def _power_phrase(text: str) -> str | None:
-    lower = text.lower()
-    if _TRAILING_OP.search(lower):
-        return None
-    match = re.search(rf"({_NUM})\s+raised to the\s+(\w+)\s+power", lower)
-    if match:
-        base = parse_number(match.group(1))
-        word = match.group(2)
-        exp = _POWER_WORDS.get(word)
-        if exp is None:
-            digits = re.match(r"(\d+)(?:st|nd|rd|th)?$", word)
-            if not digits:
-                return None
-            exp = int(digits.group(1))
-        if exp > 12:
-            return None
-        return format_decimal(base**exp)
-    match = re.search(rf"cube of\s+({_NUM})|({_NUM})\s+cubed", lower)
-    if match:
-        value = parse_number(match.group(1) or match.group(2))
-        return format_decimal(value * value * value)
-    match = re.search(rf"({_NUM})\s+squared", lower)
-    if match:
-        value = parse_number(match.group(1))
-        return format_decimal(value * value)
-    return None
-
-
-_OP_STEP = re.compile(
-    rf"(double|triple|halve)\s+(?:it|that|the result)|"
-    rf"(add|subtract|plus|minus)\s+({_NUM})|"
-    rf"(multiply|divide)\s+(?:it|that|the result)?\s*by\s+({_NUM})",
-    re.I,
-)
-
-
-def _op_chain(text: str) -> str | None:
-    lower = text.lower()
-    start = re.search(rf"(?:take|start with|begin with)\s+(?:the number\s+)?({_NUM})", lower)
-    if not start:
-        return None
-    value = parse_number(start.group(1))
-    tail = lower[start.end():]
-    # A spelled-out number ("subtract five") is an operand _OP_STEP cannot consume; the
-    # digit-only leftover guard below would miss it, so defer the whole chain.
-    if re.search(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", tail):
-        return None
-    steps = list(_OP_STEP.finditer(tail))
-    if not steps:
-        return None
-    used = {start.group(1)}
-    for step in steps:
-        unary, addsub, addsub_num, muldiv, muldiv_num = step.groups()
-        if unary:
-            value = value * 2 if unary == "double" else value * 3 if unary == "triple" else value / 2
-        elif addsub:
-            used.add(addsub_num)
-            operand = parse_number(addsub_num)
-            value = value + operand if addsub in {"add", "plus"} else value - operand
-        else:
-            used.add(muldiv_num)
-            operand = parse_number(muldiv_num)
-            if muldiv == "divide" and operand == 0:
-                return UNANSWERABLE
-            value = value * operand if muldiv == "multiply" else value / operand
-    # every number in the prompt must belong to the chain, or the shape is not this template
-    if set(re.findall(_NUM, lower)) - used:
-        return None
-    return format_decimal(value)
 
 
 def _square_of(text: str) -> str | None:
     match = re.search(rf"square of\s+({_NUM})", text, flags=re.I)
     if not match:
-        return None
-    if _leftover_digits(text, match.groups()) or _TRAILING_OP.search(text):
         return None
     value = parse_number(match.group(1))
     return format_decimal(value * value)
@@ -258,23 +155,11 @@ def _give_away(text: str) -> str | None:
 
 
 def _average(text: str) -> str | None:
-    # only bare number lists ("average of 2, 4, and 9"); "average speed/score of ..." prose
-    # needs interpretation and must go remote
-    if re.search(
-        r"\b(remov\w*|exclud\w*|except|without|ignor\w*|apart from|largest|smallest|"
-        r"highest|lowest|weighted)\b",
-        text,
-        flags=re.I,
-    ):
+    if "average" not in text.lower():
         return None
-    match = re.search(
-        rf"average of\s+((?:{_NUM})(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)(?:{_NUM}))+)",
-        text,
-        flags=re.I,
-    )
-    if not match:
+    nums = [parse_number(part) for part in re.findall(_NUM, text)]
+    if not nums:
         return None
-    nums = [parse_number(part) for part in re.findall(_NUM, match.group(1))]
     return format_decimal(sum(nums) / Decimal(len(nums)))
 
 
@@ -309,21 +194,6 @@ def _self_check() -> None:
     assert solve("What is 10 divided by zero?") == UNANSWERABLE
     assert solve("A triangle has side lengths 2 cm, 3 cm, and 10 cm. What is its area?") == UNANSWERABLE
     assert solve("How many apples did Joan keep after a complicated trade?") is None
-    assert solve("What is 7 raised to the third power?") == "343"
-    assert solve("What is 4 cubed?") == "64"
-    assert solve("Take the number 13, double it, then subtract 5. What number results?") == "21"
-    assert solve("Take 10, add 5, then divide by 3.") == "5"
-    assert solve("Take 10, add 5, but also consider the 7 bonus points.") is None
-    assert solve(
-        "A drawer holds 4 black socks and 6 white socks. You pull out two socks one after the "
-        "other without putting the first back. What is the probability that both socks are white?"
-    ) == "1/3"
-    assert solve(
-        "A bag holds 5 green marbles and 3 yellow marbles. You grab two marbles at once. "
-        "What is the probability that both are green?"
-    ) == "5/14"
-    assert solve("What is the average of 2, 4, and 9?") == "5"
-    assert solve("The average speed over 100 km taking 2 hours plus a 1 hour break?") is None
     assert solve_strict("What is 25 x 4?") == "100"
     assert solve_strict("What is 15% of 200?") == "30"
     assert solve_strict("A car travels 60 km/h for 3.5 hours. How far does it travel?") is None

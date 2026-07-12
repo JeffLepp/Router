@@ -237,31 +237,9 @@ async def _run_remote_classifier(
     client = client or _make_remote_client(config)
     batch_size = max(1, int(cfg.get("classifier_batch_size", 20) or 20))
     max_cap = max(64, int(cfg.get("classifier_max_tokens", 512) or 512))
-    retry_batch_size = max(1, int(cfg.get("classifier_retry_batch_size", 5) or 5))
     confidence = min(1.0, max(0.6, float(cfg.get("classifier_confidence", 0.99) or 0.99)))
     original_effort = str(getattr(client, "reasoning_effort", "") or "")
     overrides: dict[str, tuple[str, float]] = {}
-
-    if bool(cfg.get("classifier_prefilter_enabled", False)):
-        from agent.classify import prefilter_category
-
-        ruled = []
-        deferred = []
-        for state in states:
-            category = prefilter_category(state.task.prompt)
-            if category is None:
-                deferred.append(state)
-            else:
-                overrides[state.task.task_id] = (category, confidence)
-                ruled.append(state.task.task_id)
-        print(
-            f"classifier_prefilter ruled={len(ruled)}/{len(states)} deferred={len(deferred)}",
-            file=sys.stderr,
-        )
-        states = deferred
-        if not states:
-            return overrides, client
-
     client.reasoning_effort = ""
     try:
         for offset in range(0, len(states), batch_size):
@@ -303,59 +281,6 @@ async def _run_remote_classifier(
                     f"classifier_batch index={offset // batch_size} parsed={len(parsed)}/{len(batch)}",
                     file=sys.stderr,
                 )
-
-                # Reasoning models can spend the completion cap before closing the JSON
-                # object. Never silently send those missing rows through the weak local
-                # fallback: retry only the missing rows in small, cheap chunks. Complete
-                # pairs from the first response remain accepted, so this costs tokens only
-                # on an actually incomplete classifier response.
-                missing = [state for state in batch if state.task.task_id not in parsed]
-                for retry_offset in range(0, len(missing), retry_batch_size):
-                    retry_batch = missing[retry_offset : retry_offset + retry_batch_size]
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 1:
-                        break
-                    retry_prompt = build_remote_classifier_prompt(
-                        [(state.task.task_id, state.task.prompt) for state in retry_batch]
-                    )
-                    retry_call = remote_module.RemoteCall(
-                        task_id=(
-                            f"classifier:{offset // batch_size}:retry:"
-                            f"{retry_offset // retry_batch_size}"
-                        ),
-                        category=str(cfg.get("classifier_model_category", "summarization")),
-                        prompt=retry_prompt,
-                        max_tokens=max_cap,
-                        mandatory=True,
-                    )
-                    timeout = min(float(cfg.get("timeout_seconds", 25)), max(0.5, remaining))
-                    retry_payload = await asyncio.wait_for(
-                        client.complete(retry_call), timeout=timeout
-                    )
-                    retry_expected = {state.task.task_id for state in retry_batch}
-                    retry_parsed = parse_remote_classifications(retry_payload, retry_expected)
-                    diagnostics.append(
-                        {
-                            "batch": offset // batch_size,
-                            "retry": retry_offset // retry_batch_size,
-                            "task_ids": sorted(retry_expected),
-                            "parsed": len(retry_parsed),
-                            "response": retry_payload,
-                        }
-                    )
-                    overrides.update(
-                        {
-                            task_id: (category, confidence)
-                            for task_id, category in retry_parsed.items()
-                        }
-                    )
-                    print(
-                        "classifier_retry "
-                        f"batch={offset // batch_size} "
-                        f"index={retry_offset // retry_batch_size} "
-                        f"parsed={len(retry_parsed)}/{len(retry_batch)}",
-                        file=sys.stderr,
-                    )
             except Exception as exc:
                 print(
                     f"classifier_error batch={offset // batch_size} error={exc}",

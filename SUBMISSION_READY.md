@@ -64,12 +64,18 @@ TOKEN-REDUCTION RULE
 - Reject any new missing answer, remote error, or unexplained pass-to-fail.
 - Submit only candidates that remain at least 90% on both local judged sets.
 
-NEXT EXPERIMENTS, IN ORDER
-1. Replace the classifier call with a small local ONNX classifier only if it
-   stays 160/160; remotely defer low-confidence cases.
-2. Test the next answer-level token lever in isolation.
-3. Lower output caps only from observed completion percentiles.
-4. Expand local answers only after cold-start, 4 GB RAM, and accept-or-defer evidence.
+NEXT EXPERIMENTS, IN ORDER (updated after Phase 3 official result)
+1. Change exactly ONE category or ONE lever per submission so the aggregate
+   accuracy number is attributable. The hidden set is 19 tasks; one flip is
+   5.26 points and the platform gives no per-task feedback.
+2. Prefer levers whose token delta is deterministic (prompt trimming, cap
+   changes) over levers that change model behavior (reasoning effort).
+3. Gate every candidate with the per-task flip diff against the frozen Phase 1
+   run, not with aggregate local accuracy. Local judged sets are saturated
+   (92.5-97.5%) and have failed to predict hidden accuracy three times.
+4. Do not trust local-to-hidden token ratios across configs that change
+   batching/fallback behavior; Phase 3 had FEWER local tokens than Phase 1
+   (31,891 vs 33,959 on v2) but MORE official tokens (13,005 vs 12,012).
 
 DOCKER IMAGE
 jeffklin303/amd-router:phase1-direct-compression-20260711
@@ -77,31 +83,34 @@ sha256:03dd918dd42bad832842456200c3ddd6678470e242d5b6c469aaf1f59def87fa
 https://hub.docker.com/r/jeffklin303/amd-router
 ```
 
-## Phase 2 candidate (READY TO SUBMIT, awaiting push)
+## Phase 3 postmortem (official: 89.5%, 13,005 tokens — REJECTED)
 
-Image: `jeffklin303/amd-router:phase2-aggressive-7605428`
-(manifest list `sha256:df52cb19477c9d6a65e2917922fe107a370c2ee4334062e1fbb865a776b2bff7`)
-Source: branch `testing2` @ `7605428` (= prefilter `8ac2699` + math_full gate + reasoning cuts).
+Scored 2026-07-12 05:19 PDT, rank 63. Worse than Phase 1 on both axes:
+one more miss (17/19 vs 18/19) and +993 tokens. The 10,700-11,300 forecast
+missed low by ~2,000 tokens. **Reverted: `agent/` on `testing2` is restored
+byte-identical to Phase 1 commit `8dddb0e`. The active submission is the
+frozen Phase 1 image below. Do not submit the phase2 or phase3 tags.**
 
-Levers stacked on the prefilter candidate (each its own commit for traceback):
-1. `8ac2699` zero-token classifier prefilter (~55% coverage, 0/280 wrong, rest defers).
-2. `bffcf52` math_full gate profile: generalized zero-token math templates
-   (dataset 10/10, variants2 7/10, variants3 5/10 covered, 0 wrong — `scripts/math_audit`).
-3. `942db63` + `7605428` reasoning_effort none for qa/ner/sentiment/summarization/math;
-   only logic and code keep hidden reasoning.
+What Phase 3's failure adds to the Phase 2 lessons:
 
-| Gate | Result |
-|---|---:|
-| prefilter audit / math audit / self-checks | all PASS, 0 wrong |
-| mock routing parity vs prefilter candidate | only delta: 8 math tasks -> local gate |
-| variants2 live | **96.25% judged**, 19,741 tokens (-37% vs prefilter run), 0 errors/retries |
-| variants3 live | **96.25% judged**, 20,999 tokens (-33% vs prefilter run), 0 errors/retries |
-| pass->fail churn | v2: +3 fixed / 1 new (v2_ner_010, empty-entity edge, reasoning-cut casualty); v3: +4 fixed / 1 new (v3_math_002, remote arithmetic slip w/o reasoning) |
-| Floor-C keyless smoke | PASS (80/80 answers in results.json) |
+1. **Local sets cannot rank candidates.** All of accuracy-first (89.5),
+   phase2 (63.2), phase3 (89.5), and phase1 (94.7) scored 92.5-97.5% on
+   variants2/3. Local gates screen for gross breakage only; passing them says
+   nothing about which candidate is better on the hidden 19.
+2. **Token forecasts don't transfer across batching changes.** Phase 3 used
+   fewer local tokens than Phase 1 yet more official tokens — high-reasoning
+   NER forced per-row fallback on the hidden set, exactly the risk the
+   forecast note flagged, but in the opposite direction of the band.
+3. **Multi-lever "safe" bundles still lose.** Phase 3 stacked five changes
+   (NER reasoning restore, adaptive sentiment/summary reasoning, sentiment
+   final-overall clarification, prefilter, classifier retries). One of them
+   cost a task; the aggregate score cannot say which. Every submission that
+   changed multiple levers has lost to single-lever Phase 1.
 
-Official forecast: ~7,000-7,600 tokens (from 12,012), accuracy risk bounded by the
-two explained edge-case fail modes. To ship: `docker push jeffklin303/amd-router:phase2-aggressive-7605428`,
-submit, then record digest + result in `submission_history.csv`.
+Phase 2 root causes (still valid): no-reasoning math/sentiment/NER caused
+answer failures; the prefilter changed deferred-batch composition and a
+20-row classifier call silently truncated at 1,024 tokens; noun-trigger
+prefilter rules broke on near-miss task shapes.
 
 ## Release evidence
 
@@ -137,4 +146,24 @@ python -m scripts.acceptance_p1
 python -m scripts.live_benchmark --mock --out-dir .\benchmark_runs\mock-token-candidate
 python -m scripts.live_benchmark --dataset eval\devset\variants2.json --score-judge --remote-timeout 90 --env-file .env.local --out-dir benchmark_runs\live-token-candidate-v2
 python -m scripts.live_benchmark --dataset eval\devset\variants3.json --score-judge --remote-timeout 90 --env-file .env.local --out-dir benchmark_runs\live-token-candidate-v3
+# MANDATORY new gate: per-task flip diff vs the frozen Phase 1 runs.
+# Any pass->fail = reject. Any answer change must be individually justified.
+python -m scripts.flip_diff benchmark_runs\live-phase1-compressed-direct-v2-final-20260711 benchmark_runs\live-token-candidate-v2
+python -m scripts.flip_diff benchmark_runs\live-phase1-compressed-direct-v3-final-20260711 benchmark_runs\live-token-candidate-v3
 ```
+
+Retroactive proof: this gate rejects Phase 3 (2 pass->fail on variants3 —
+`v3_debug_006` broken fix, `v3_ner_009` dropped the dual-role Washington
+entity) even though both runs scored an identical 96.25% aggregate.
+
+## Phase 1 token anatomy (v2 run, 33,959 total — where cuts can come from)
+
+| Component | Tokens | Share |
+|---|---:|---:|
+| classifier (4 calls: 5,099 prompt + 2,216 completion) | 7,315 | 21.5% |
+| answer prompts (58 requests) | 11,772 | 34.7% |
+| answer completions | 14,872 | 43.8% |
+| — of which summarization completions | 5,737 | 16.9% |
+
+Prompt tokens are ~50% of all spend; the classifier alone is a fifth.
+Both are cuttable without touching answer behavior.

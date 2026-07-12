@@ -7,7 +7,11 @@ import json
 import sys
 from collections import Counter
 
-from agent.classify import prefilter_category
+try:
+    from agent.classify import prefilter_category
+except ImportError:
+    # ponytail: prefilter is a Phase 2/3 feature; on Phase 1 runtime this audit has nothing to check
+    sys.exit("prefilter_category not present in agent.classify (Phase 1 runtime) - audit skipped")
 
 DATASETS = [
     "dataset.json",
