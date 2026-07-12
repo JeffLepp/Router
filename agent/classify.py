@@ -26,6 +26,11 @@ LEGACY_CATEGORY_MAP = {
     "code_gen": "code_generation",
 }
 
+# Digit codes cut classifier completion ~3x vs spelled-out labels and make the Phase 2
+# failure mode (a 20-row batch truncating at the completion cap) structurally impossible:
+# 20 rows of single digits is ~200 tokens against a 1,024-token cap.
+CATEGORY_CODES = {str(index): category for index, category in enumerate(CATEGORIES, start=1)}
+
 
 @dataclass(frozen=True)
 class Classification:
@@ -122,6 +127,18 @@ def canonical_category(category: str) -> str:
     return mapped if mapped in CATEGORIES else "actual_qa"
 
 
+_CLIP_HEAD, _CLIP_TAIL = 400, 150
+
+
+def _clip(text: str) -> str:
+    # Classification cues (the imperative, the requested output shape) live at the edges of a
+    # prompt; the middle of a long passage or code block only costs classifier prompt tokens.
+    # Audited label-identical against gold on every local dataset before shipping.
+    if len(text) <= _CLIP_HEAD + _CLIP_TAIL + 20:
+        return text
+    return f"{text[:_CLIP_HEAD]} ... {text[-_CLIP_TAIL:]}"
+
+
 def build_remote_classifier_prompt(items: list[tuple[str, str]]) -> str:
     """Build one compact, answer-free classification request.
 
@@ -129,16 +146,13 @@ def build_remote_classifier_prompt(items: list[tuple[str, str]]) -> str:
     never answers the tasks, so a malformed response can safely fall back to the local regex
     classifier without losing a task.
     """
-    payload = [
-        {"task_id": str(task_id), "prompt": str(prompt)}
-        for task_id, prompt in items
-    ]
-    labels = ", ".join(CATEGORIES)
+    payload = {str(task_id): _clip(str(prompt)) for task_id, prompt in items}
+    labels = " ".join(f"{code}={category}" for code, category in CATEGORY_CODES.items())
     return (
         "Classify each task by its requested output, not by incidental words in its passage.\n"
-        f"Allowed labels: {labels}.\n"
-        "Return ONLY one compact JSON object mapping every task_id to exactly one allowed "
-        "label. Do not answer any task and do not explain.\n"
+        f"Labels: {labels}\n"
+        "Return ONLY one compact JSON object mapping every task id to its label number. "
+        "Do not answer any task and do not explain.\n"
         "TASKS_JSON:\n"
         + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     )
@@ -173,14 +187,17 @@ def parse_remote_classifications(
         ]
     if not rows:
         # A reasoning model can consume the output budget before writing the final `}`.
-        # Complete string pairs are still safe to accept; unfinished/missing rows defer to
-        # the local classifier rather than invalidating the whole batch.
-        rows = re.findall(r'"([^"\\]+)"\s*:\s*"([^"\\]+)"', text)
+        # Complete pairs are still safe to accept; unfinished/missing rows defer to the
+        # local classifier rather than invalidating the whole batch. Values may be bare
+        # digits (`"t1":3`) or labels; a value truncated mid-word fails the CATEGORIES
+        # check below and defers.
+        rows = re.findall(r'"([^"\\]+)"\s*:\s*"?([A-Za-z0-9_]+)"?', text)
 
     parsed: dict[str, str] = {}
     for task_id_raw, category_raw in rows:
         task_id = str(task_id_raw or "")
-        category = LEGACY_CATEGORY_MAP.get(str(category_raw or "").strip(), str(category_raw or "").strip())
+        raw = str(category_raw if category_raw is not None else "").strip()
+        category = CATEGORY_CODES.get(raw) or LEGACY_CATEGORY_MAP.get(raw, raw)
         if task_id in expected_ids and category in CATEGORIES:
             parsed[task_id] = category
     return parsed
@@ -267,15 +284,26 @@ def _self_check() -> None:
         [("t1", "Which person is mentioned?"), ("t2", "The service was awful.")]
     )
     assert "TASKS_JSON:" in prompt and "t1" in prompt and "t2" in prompt
+    assert "1=actual_qa" in prompt and "8=code_generation" in prompt
+    # long prompts are clipped head+tail; short ones pass through untouched
+    long_prompt = "Summarize this: " + "x" * 900 + " END"
+    clipped = build_remote_classifier_prompt([("t3", long_prompt)])
+    assert "Summarize this:" in clipped and clipped.count("x") < 700 and "END" in clipped
+    # digit codes (quoted or bare JSON ints) and full labels all parse
+    assert parse_remote_classifications('{"t1":"5","t2":3}', {"t1", "t2"}) == {
+        "t1": "named_entity_recognition",
+        "t2": "sentiment_analysis",
+    }
     parsed = parse_remote_classifications(
         '```json\n{"t1":"named_entity_recognition","t2":"sentiment_analysis","x":"logic_puzzles"}\n```',
         {"t1", "t2"},
     )
     assert parsed == {"t1": "named_entity_recognition", "t2": "sentiment_analysis"}
     assert parse_remote_classifications("not json", {"t1"}) == {}
+    # a truncated batch keeps complete pairs (including a bare-digit tail) and defers the rest
     assert parse_remote_classifications(
-        '{"t1":"logic_puzzles","t2":"named_entity_recognition', {"t1", "t2"}
-    ) == {"t1": "logic_puzzles"}
+        '{"t1":"logic_puzzles","t2":7,"t3":"named_entity_recog', {"t1", "t2", "t3"}
+    ) == {"t1": "logic_puzzles", "t2": "logic_puzzles"}
     print("PASS classify self-check")
 
 

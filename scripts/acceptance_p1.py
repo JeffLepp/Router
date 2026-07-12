@@ -554,17 +554,16 @@ def test_default_config_is_accuracy_first() -> None:
     assert config.mandatory_remote == 1
     assert config.remote_enabled is True
     assert config.gate_enabled is True
-    assert config.gate_profile == "math_full"
+    # Frozen Phase 1 (8dddb0e): strict gate, no prefilter, adaptive NER only.
+    assert config.gate_profile == "strict"
     assert config.batching.get("enabled") is True
     assert config.remote.get("accuracy_first") is True
     assert config.remote.get("classifier_enabled") is True
-    assert config.remote.get("classifier_prefilter_enabled") is True
+    assert "classifier_prefilter_enabled" not in config.remote
     efforts = config.remote.get("reasoning_effort_by_category")
     assert efforts == {
         "actual_qa": "none",
-        "named_entity_recognition": "high",
-        "sentiment_analysis": "adaptive",
-        "summarization": "adaptive",
+        "named_entity_recognition": "adaptive",
     }
 
     experiment = AgentConfig.from_path(ROOT / "agent" / "config.remote-classifier.yaml")
@@ -610,13 +609,10 @@ def test_remote_batch_classifier_overrides_routes() -> None:
             assert self.reasoning_effort == ""
             prompt = getattr(call, "prompt")
             rows = json.loads(prompt.split("TASKS_JSON:", 1)[1].strip())
+            assert isinstance(rows, dict)
+            # respond in digit codes, the format the compressed classifier prompt requests
             mapping = {
-                row["task_id"]: (
-                    "named_entity_recognition"
-                    if row["task_id"] == "ner"
-                    else "logic_puzzles"
-                )
-                for row in rows
+                task_id: ("5" if task_id == "ner" else "7") for task_id in rows
             }
             return json.dumps(mapping)
 
@@ -664,7 +660,9 @@ def test_remote_batch_classifier_overrides_routes() -> None:
     assert prepared.source == "deferred" and prepared.remote_prompt
 
 
-def test_remote_classifier_retries_missing_rows() -> None:
+def test_remote_classifier_missing_rows_defer_locally() -> None:
+    # Phase 1 has no classifier retry: a row the model drops stays with the local
+    # classifier instead of triggering a second remote call.
     import asyncio
 
     from agent.config import AgentConfig
@@ -677,11 +675,9 @@ def test_remote_classifier_retries_missing_rows() -> None:
 
         async def complete(self, call: object) -> str:
             rows = json.loads(getattr(call, "prompt").split("TASKS_JSON:", 1)[1].strip())
-            ids = [row["task_id"] for row in rows]
+            ids = list(rows)
             self.calls.append(ids)
-            if len(ids) > 1:
-                return json.dumps({ids[0]: "logic_puzzles"})
-            return json.dumps({ids[0]: "code_debugging"})
+            return json.dumps({ids[0]: "logic_puzzles"})
 
     states = [
         TaskState(Task("logic", "Who must be first under these constraints?")),
@@ -692,7 +688,6 @@ def test_remote_classifier_retries_missing_rows() -> None:
         remote={
             "classifier_enabled": True,
             "classifier_batch_size": 2,
-            "classifier_retry_batch_size": 1,
             "classifier_max_tokens": 64,
             "classifier_confidence": 0.99,
             "timeout_seconds": 2,
@@ -703,11 +698,8 @@ def test_remote_classifier_retries_missing_rows() -> None:
         _run_remote_classifier(states, config, time.monotonic() + 5, client)
     )
     assert returned is client
-    assert client.calls == [["logic", "debug"], ["debug"]]
-    assert overrides == {
-        "logic": ("logic_puzzles", 0.99),
-        "debug": ("code_debugging", 0.99),
-    }
+    assert client.calls == [["logic", "debug"]]
+    assert overrides == {"logic": ("logic_puzzles", 0.99)}
 
 
 def test_accuracy_profile_keeps_only_strict_arithmetic() -> None:
@@ -756,7 +748,7 @@ def main() -> None:
         ("default config is accuracy-first", test_default_config_is_accuracy_first),
         ("adaptive reasoning governor", test_adaptive_reasoning_governor),
         ("remote batch classifier overrides routes", test_remote_batch_classifier_overrides_routes),
-        ("remote classifier retries missing rows", test_remote_classifier_retries_missing_rows),
+        ("remote classifier missing rows defer locally", test_remote_classifier_missing_rows_defer_locally),
         ("accuracy profile keeps strict arithmetic", test_accuracy_profile_keeps_only_strict_arithmetic),
     ]
     for name, func in tests:

@@ -70,17 +70,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def _content(self, user: str, max_tokens: int) -> str:
         lower = user.lower()
-        if "tasks_json:" in lower and "allowed labels:" in lower:
+        if "tasks_json:" in lower:
             try:
-                from agent.classify import classify
+                from agent.classify import CATEGORY_CODES, classify
 
                 rows = json.loads(user.split("TASKS_JSON:", 1)[1].strip())
+                if not isinstance(rows, dict):
+                    return "{}"
+                # answer in digit codes, like the real classifier is instructed to
+                code_of = {category: code for code, category in CATEGORY_CODES.items()}
                 mapped = {
-                    str(row["task_id"]): asyncio.run(
-                        classify(str(row.get("prompt", "")), None)
-                    ).category
-                    for row in rows
-                    if isinstance(row, dict) and row.get("task_id") is not None
+                    str(task_id): code_of[asyncio.run(classify(str(prompt), None)).category]
+                    for task_id, prompt in rows.items()
                 }
                 return json.dumps(mapped, separators=(",", ":"))
             except (json.JSONDecodeError, KeyError, TypeError, ValueError):
