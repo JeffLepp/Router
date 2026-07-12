@@ -3,7 +3,9 @@ mandatory_remote: 1
 # Hidden-set recovery profile: keep only operations that are recomputed from an explicit
 # numeric expression. All dataset-shaped and language-heuristic solvers remain remote.
 gate_enabled: true
-gate_profile: strict
+# math_full: full arithmetic/wordmath template chain for math only (0 wrong on all
+# labeled dev tasks, scripts/math_audit); every other category still defers remotely.
+gate_profile: math_full
 local_slots: 4
 remote_slots: 8
 wall_seconds: 510
@@ -66,9 +68,15 @@ remote:
   reasoning_effort: high
   # Phase 1: direct-output work does not need hidden chain-of-thought. Adaptive
   # categories retain high effort for coupled constraints, sarcasm, and exclusions.
+  # Phase 2 aggressive: sentiment answers direct (labels are cheap, sarcasm risk accepted),
+  # summaries reason only for structured/exclusion constraints, math templates cover the
+  # mechanical cases so the remainder answers direct. Logic and code keep full reasoning.
   reasoning_effort_by_category:
     actual_qa: none
     named_entity_recognition: adaptive
+    sentiment_analysis: none
+    summarization: adaptive
+    math_reasoning: none
   usd_per_mtok: 0.9
   dev_spend_cap: 0.0
 max_tokens:
