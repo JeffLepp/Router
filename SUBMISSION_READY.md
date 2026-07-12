@@ -77,6 +77,32 @@ sha256:03dd918dd42bad832842456200c3ddd6678470e242d5b6c469aaf1f59def87fa
 https://hub.docker.com/r/jeffklin303/amd-router
 ```
 
+## Phase 2 candidate (READY TO SUBMIT, awaiting push)
+
+Image: `jeffklin303/amd-router:phase2-aggressive-7605428`
+(manifest list `sha256:df52cb19477c9d6a65e2917922fe107a370c2ee4334062e1fbb865a776b2bff7`)
+Source: branch `testing2` @ `7605428` (= prefilter `8ac2699` + math_full gate + reasoning cuts).
+
+Levers stacked on the prefilter candidate (each its own commit for traceback):
+1. `8ac2699` zero-token classifier prefilter (~55% coverage, 0/280 wrong, rest defers).
+2. `bffcf52` math_full gate profile: generalized zero-token math templates
+   (dataset 10/10, variants2 7/10, variants3 5/10 covered, 0 wrong — `scripts/math_audit`).
+3. `942db63` + `7605428` reasoning_effort none for qa/ner/sentiment/summarization/math;
+   only logic and code keep hidden reasoning.
+
+| Gate | Result |
+|---|---:|
+| prefilter audit / math audit / self-checks | all PASS, 0 wrong |
+| mock routing parity vs prefilter candidate | only delta: 8 math tasks -> local gate |
+| variants2 live | **96.25% judged**, 19,741 tokens (-37% vs prefilter run), 0 errors/retries |
+| variants3 live | **96.25% judged**, 20,999 tokens (-33% vs prefilter run), 0 errors/retries |
+| pass->fail churn | v2: +3 fixed / 1 new (v2_ner_010, empty-entity edge, reasoning-cut casualty); v3: +4 fixed / 1 new (v3_math_002, remote arithmetic slip w/o reasoning) |
+| Floor-C keyless smoke | PASS (80/80 answers in results.json) |
+
+Official forecast: ~7,000-7,600 tokens (from 12,012), accuracy risk bounded by the
+two explained edge-case fail modes. To ship: `docker push jeffklin303/amd-router:phase2-aggressive-7605428`,
+submit, then record digest + result in `submission_history.csv`.
+
 ## Release evidence
 
 | Check | Result |
