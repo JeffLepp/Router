@@ -127,8 +127,9 @@ _PF_ENTITY = re.compile(
     r"places?|dates?|money|amounts?|events?|entit(?:y|ies))\b"
 )
 _PF_SHAPE = re.compile(
-    r"summari|gist|recap|boil .{0,15}down|condense|tl;?dr|one sentence|"
-    r"single sentence|a sentence or two|one line|bullet"
+    r"summar|gist|recap|boil .{0,15}down|condense|tl;?dr|one sentence|"
+    r"single sentence|a sentence or two|one line|bullet|"
+    r"\b(?:two|three|four|five|\d+) sentences?\b"
 )
 _PF_BROKEN = re.compile(
     r"bug|error|fix|debug|supposed to|but it|doesn'?t|does not|instead|"
@@ -137,7 +138,7 @@ _PF_BROKEN = re.compile(
 _PF_LANG = re.compile(r"\b(python|javascript|java|sql|c\+\+|c#|regex)\b|\bin c\b")
 _PF_ARTIFACT = re.compile(r"\b(function|method|query|class|script|program|table)\b")
 _PF_INSTRUCT = re.compile(
-    r"\b(write|creat|implement|summari|extract|identify|list|name|find|design|"
+    r"\b(write|creat|implement|summar|extract|identify|list|name|find|design|"
     r"give|tell|calculat|solv|explain|translat|convert|pull out|pick out|"
     r"note each|what|which|who|how)\w*"
 )
@@ -153,11 +154,17 @@ def prefilter_category(prompt: str) -> str | None:
 
     if has_fence and broken:
         return "code_debugging"
-    if re.search(r"\bsummari", low) or (_PF_SHAPE.search(low) and len(text) > 200):
+    if re.search(r"\bsummar", low) or (_PF_SHAPE.search(low) and len(text) > 200):
         return "summarization"
     if not has_fence and not broken and _PF_LANG.search(low) and _PF_ARTIFACT.search(low):
         return "code_generation"
-    if entity_hits >= 2 and re.search(r"text|passage|below|following|mentioned|sentence|:", low):
+    # A summary-shape cue anywhere means this is not an extraction task; defer rather
+    # than let entity nouns in the body steal a summarization prompt (v4_summary_008).
+    if (
+        entity_hits >= 2
+        and re.search(r"text|passage|below|following|mentioned|sentence|:", low)
+        and not _PF_SHAPE.search(low)
+    ):
         return "named_entity_recognition"
     if re.search(r"does it follow|can you conclude|answer yes or no", low):
         return "logic_puzzles"
