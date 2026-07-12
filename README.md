@@ -1,142 +1,133 @@
 # Hybrid Token-Efficient Router
 
-Track 1 entry for the AMD Developer Hackathon ACT II. The router answers the
-fixed task set while minimizing Fireworks tokens; accuracy is always the first
-gate. See [AGENTS.md](AGENTS.md) for the competition rules and module map.
+Track 1 entry for the AMD Developer Hackathon ACT II. The router classifies each
+task, proves a small safe subset locally, and sends unresolved work to the best
+validated model exposed through the judging proxy.
 
-## Current status
+## Current phase
 
-The latest trusted live artifact is
-`benchmark_runs/live-batching-fixes-20260710`: **69/80 strict (86.25%), 72/80
-judged (90%), 5,195 Fireworks tokens, and zero remote errors**. The deterministic
-and local-queue work after that run has passed local/mock checks but is not
-presented as a paid-live result.
+The accuracy gate is passed. The current official result is **89.5%** (about
+17/19 tasks), placing the project **67th**. Development now focuses on reducing
+Fireworks tokens while preserving accuracy above 80%.
 
-After the 42.1% hidden-set result, the submission default is an accuracy-first
-recovery profile:
+Because a 19-task score moves in 5.26-point steps, the current result can absorb
+only one additional miss: 16/19 is 84.2%, while 15/19 is 78.9%. Token changes
+therefore ship one at a time behind paired accuracy gates.
 
-1. Classify the task into one of eight categories.
-2. Answer only explicit, recomputable arithmetic and fixed metric conversions
-   locally; send everything else through `FIREWORKS_BASE_URL`, using only
-   runtime `ALLOWED_MODELS`.
-3. Prefer reasoning-capable models for math, logic, and code, request high
-   reasoning effort, and use non-starving completion caps.
-4. Keep heuristic deterministic gates and batching off until they pass a
-   genuinely out-of-distribution precision suite.
+Frozen accuracy image:
 
-The previous token-efficient behavior remains available as
-`agent/config.efficiency.yaml` for controlled A/B tests. Accuracy must recover
-before any of those optimizations are promoted back into the default.
+```text
+jeffklin303/amd-router:accuracy-first-20260711
+sha256:fafd46eef741e6ef1660c05084a1893807572c50b650b85399266d04e82bc0bf
+```
 
-An optional Floor-CL profile adds a single sequential, summary-only llama.cpp
-queue while non-summary remote work runs concurrently. Anything rejected or
-timed out falls through to Fireworks.
+See [SUBMISSION_READY.md](SUBMISSION_READY.md) for the copy/paste teammate
+overview and [ARCHITECTURE_AND_RESULTS.md](ARCHITECTURE_AND_RESULTS.md) for the
+full evidence and token-reduction plan.
+
+## Router at a glance
+
+```text
+/input/tasks.json
+        |
+        v
+one batched Fireworks classifier -> 8 task categories
+        |
+        v
+strict deterministic proof gate -- proven --> zero-token answer
+        |
+      unresolved
+        v
+validated category route
+  Minimax: QA, math, sentiment
+  Kimi:    summary, NER, debugging, logic, code generation
+        |
+        v
+category contract + output normalization
+        |
+        v
+/output/results.json
+```
+
+The official harness supplies `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, and
+`ALLOWED_MODELS`. The router never bundles credentials or fixed provider model
+IDs, and every remote request goes through the supplied base URL.
+
+## Accuracy evidence
+
+| Evidence | Result |
+|---|---:|
+| Official submission | **89.5%**, rank 67 |
+| Remote classifier audit | **160/160** across variants2 + variants3 |
+| variants2 full live release gate | **96.25% judged**, 42,025 tokens, 0 errors |
+| variants3 full live release gate | **96.25% judged**, 41,952 tokens, 0 errors |
+| Final affected-category gate | NER 10/10, summary 9/10, 0 errors |
+| Docker acceptance | public linux/amd64, 0.08 GB compressed, both smokes pass |
+
+The local variant scores are regression gates, not claims about the hidden set.
+The official 89.5% result remains the decision anchor.
 
 ## Input/output contract
 
-The container reads `/input/tasks.json` and writes `/output/results.json`:
+The container reads `/input/tasks.json`:
 
 ```json
 [{"task_id":"t1","prompt":"What is 2 + 2?"}]
 ```
 
+Before exiting it writes `/output/results.json`:
+
 ```json
 [{"task_id":"t1","answer":"4"}]
 ```
 
-Runtime values come from `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, and
-`ALLOWED_MODELS`. Keys, base URLs, `.env` files, and Fireworks model IDs are not
-baked into the image.
+## Local validation
 
-## Local setup and validation
-
-Install Python dependencies:
+Install the small Python dependency set:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Run the safe local checks before a live benchmark:
+Run no-cost gates before a live experiment:
 
-```bash
-python -m py_compile agent/contracts.py agent/remote.py agent/gate.py agent/solvers/sentiment_solve.py scripts/live_benchmark.py
+```powershell
+python -m py_compile agent\classify.py agent\contracts.py agent\main.py agent\remote.py scripts\live_benchmark.py
 python -m eval.score
-python -m eval.gate_report --holdout
 python -m scripts.acceptance_p2
 python -m scripts.acceptance_p25
 python -m scripts.acceptance_p1
-python -m scripts.live_benchmark --mock --score-judge --out-dir benchmark_runs/mock-agent-check
+python -m scripts.live_benchmark --mock --out-dir .\benchmark_runs\mock-agent-check
 ```
 
-A paid Fireworks run requires explicit approval:
+Run paid variant gates only after local checks pass:
 
-```bash
-python -m scripts.live_benchmark --floor floor-c --score-judge --env-file .env.local
+```powershell
+python -m scripts.live_benchmark --dataset eval\devset\variants2.json --score-judge --remote-timeout 90 --env-file .env.local --out-dir benchmark_runs\live-candidate-v2
+python -m scripts.live_benchmark --dataset eval\devset\variants3.json --score-judge --remote-timeout 90 --env-file .env.local --out-dir benchmark_runs\live-candidate-v3
 ```
 
-## Building Floor-C
+## Docker submission
 
-An ordinary build produces the small CPU-safe Floor-C target:
+Build the CPU-safe Floor-C image:
 
 ```bash
 docker build --platform linux/amd64 -t router:floor-c .
 ```
 
-The broader build/size/push/pull smoke is:
-
-```bash
-bash scripts/build_and_size.sh
-```
-
-On Windows, invoke it through Git Bash:
+The full size, push/pull, manifest, and smoke gate is:
 
 ```powershell
+$env:IMAGE='your-dockerhub-user/amd-router:candidate'
 & 'C:\Program Files\Git\bin\bash.exe' scripts/build_and_size.sh
 ```
 
-## Building a Floor-CL candidate
+Floor-CL and larger local-model experiments remain optional research paths.
+They are not the current submission default because image size is not the main
+constraint; cold start, 4 GB RAM, and accuracy calibration are.
 
-The `floor-cl` target compiles a static, CPU-only llama.cpp server and requires
-model and license URLs plus SHA-256 values. Those arguments intentionally have
-no defaults. For example, the measured Apache-2.0 SmolLM3 candidate uses:
+## Optimization rule
 
-```bash
-docker build --platform linux/amd64 --target floor-cl \
-  --build-arg MODEL_GGUF_URL=https://huggingface.co/ggml-org/SmolLM3-3B-GGUF/resolve/main/SmolLM3-Q4_K_M.gguf \
-  --build-arg MODEL_GGUF_SHA256=8334b850b7bd46238c16b0c550df2138f0889bf433809008cc17a8b05761863e \
-  --build-arg MODEL_LICENSE_URL=https://www.apache.org/licenses/LICENSE-2.0.txt \
-  --build-arg MODEL_LICENSE_SHA256=cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30 \
-  --build-arg MODEL_SYSTEM_PROMPT=/no_think \
-  -t router:floor-cl-candidate .
-```
-
-`agent/config.track2.yaml` enables only summarization: one queue slot, a
-35-second per-task deadline, 240-second stage ceiling, and 64/110/150-token
-shape caps. Benchmark the baked model under grader-style limits:
-
-```bash
-docker run --rm --cpus=2 --memory=4g --entrypoint python3 \
-  -v "$PWD:/workspace:ro" -w /workspace router:floor-cl-candidate \
-  -m scripts.bench_local --models candidate=/models/model.gguf \
-  --server-bin /usr/local/bin/llama-server --require-qualifier
-```
-
-Qualification requires 100% accepted precision across the 12 applicable
-public+holdout summaries, at least 6/7 unresolved public summaries accepted,
-cold readiness under 45 seconds, the summary stage under 240 seconds, and peak
-RSS at or below 3.7 GiB.
-
-Neither tested model is promoted. SmolLM3 was resource-safe but accepted only
-1/7 unresolved public summaries in the latest full-container run. LFM2 reached 5/7 on the latest
-repeated full run, and selection also requires explicit eligibility under the
-LFM Open License v1.0 revenue threshold. Floor-C remains the default.
-
-## Submission checklist
-
-- Public, pullable `linux/amd64` image below 10 GB compressed.
-- Read `/input/tasks.json`, atomically write valid `/output/results.json`, exit 0.
-- No missing answers or remote errors in two approved full-80 validations.
-- Runtime model selection remains restricted to `ALLOWED_MODELS`.
-- No secrets, benchmark answers, or private artifacts in the image or repo.
-- Complete the lablab.ai title, descriptions, tags, cover, video, slides,
-  public repository, demo platform, and application URL.
+Freeze the accuracy image, change one lever, and compare paired outputs. Do not
+promote a token-saving change if either variant set regresses, a new remote error
+appears, or the official score falls below 84.2%.

@@ -1,189 +1,193 @@
-# Architecture & Benchmark Results
+# Architecture and Results
 
-Track 1 — Hybrid Token-Efficient Routing Agent (AMD Hackathon ACT II).
-Scored on **Fireworks tokens (ascending)** *after* passing the accuracy gate.
-Zero-token local/gate answers are the moat.
+Last updated: 2026-07-11. Current phase: token optimization after passing the
+official accuracy gate.
 
-Last updated: 2026-07-09.
+## Decision baseline
 
----
+| Metric | Current value |
+|---|---:|
+| Official accuracy | **89.5%** (approximately 17/19) |
+| Official placement | **67th** |
+| Required accuracy | above 80% |
+| One additional miss | 16/19 = 84.2% |
+| Two additional misses | 15/19 = 78.9% - below target |
+| Frozen image | `jeffklin303/amd-router:accuracy-first-20260711` |
+| Frozen digest | `sha256:fafd46eef741e6ef1660c05084a1893807572c50b650b85399266d04e82bc0bf` |
 
-## Architecture
+The project has one task of accuracy budget. Token efficiency is now the goal,
+but avoiding a second additional miss is the release constraint.
 
-One image, default Floor-C plus opt-in local profiles. Flip `CONFIG_PATH` or
-`local_candidate.enabled` at runtime; rebuild only when changing the baked GGUF:
+## Runtime architecture
 
-- **Floor-C (default):** classify → deterministic solver → route only unresolved
-  tasks to Fireworks. Local llama-server stays **off**, so startup is near-instant.
-- **Floor-CL (optional):** adds a local llama.cpp candidate tier between the gate
-  and remote. Disabled by default until local startup is proven in the harness env.
-- **Track 2 profile (opt-in):** `agent/config.track2.yaml` turns the local tier
-  on for short-output, accept-gated categories with k=1 and a 10s cap. Summary
-  and code-generation tasks still stay remote.
-
-### Pipeline (Floor-C)
-
-```
-/input/tasks.json
-   │
-   ▼
-classify (agent/classify.py)        8 canonical categories; weak cues need corroboration
-   │
-   ▼
-deterministic gate (agent/gate.py)  zero-token solvers → arithmetic, wordmath,
-   │  hit → answer                   sentiment, ner, logic, code, format
-   │  miss
-   ▼
-remote (agent/remote.py)            cheapest model from runtime ALLOWED_MODELS,
-   │                                 per-category routing, token ledger, retries
-   ▼
-contracts (agent/contracts.py)      prompt contract + max-token cap + answer assembly
-   │
-   ▼
-/output/results.json                {"task_id": "...", "answer": "..."}
+```mermaid
+flowchart TD
+    A[/input/tasks.json/] --> B[One batched remote classifier]
+    B --> C{8 categories}
+    C --> D[Strict deterministic proof gate]
+    D -->|proven| E[Zero-token answer]
+    D -->|unresolved| F{Validated model route}
+    F -->|QA, math, sentiment| G[Minimax]
+    F -->|summary, NER, debug, logic, generation| H[Kimi]
+    G --> I[Category contract and normalization]
+    H --> I
+    E --> J[/output/results.json/]
+    I --> J
 ```
 
-### Model routing
+### Stage responsibilities
 
-- Models come **only** from the runtime `ALLOWED_MODELS` env — never hardcoded.
-- `choose_model_for_category` picks from the allowed list via category regex, falls
-  back to ranked default; empty list raises. No baked model IDs on the runtime path.
-- Every call goes through `FIREWORKS_BASE_URL`.
+1. `agent/main.py` reads tasks, deduplicates IDs, manages the deadline, and
+   writes atomic snapshots.
+2. `agent/classify.py` builds one compact classifier request for the task batch.
+   Invalid or missing rows fall back to conservative local classification.
+3. `agent/gate.py` accepts only deterministic answers supported by proof code.
+4. `agent/remote.py` selects only from runtime `ALLOWED_MODELS`, sends every
+   request through `FIREWORKS_BASE_URL`, retries transport failures, and records
+   actual token usage.
+5. `agent/contracts.py` supplies the category instruction, completion ceiling,
+   and conservative output assembly.
+6. The agent writes `[{"task_id":"...","answer":"..."}]` and exits 0.
 
-### Post-merge routing details
+### Validated primary routes
 
-- Remote robustness now retries blank completions on a fallback allowed model.
-- If a provider rejects `reasoning_effort`, the client caches that per model and
-  retries without the param instead of failing the request.
-- Model ranking is active-parameter aware for MoE model IDs such as `a4b`; this
-  keeps routing cheap when total-parameter and active-parameter counts differ.
-- `agent/config.track2.yaml` currently sets `local_slots: 4`,
-  `self_consistency_k: 1`, and `latency_cap_s: 10`. Keep Track 2 opt-in until
-  the real local model is re-benchmarked inside the grader-style CPU/RAM limit.
-- `scripts/dashboard.py` is a dev visualization tool. The runtime Dockerfile
-  copies `agent/` and `docker/entrypoint.sh`, not `scripts/`, so the dashboard is
-  not part of the submitted container payload unless the Dockerfile changes.
+| Category | Primary | Reason |
+|---|---|---|
+| Actual QA | Minimax | strongest validated factual knowledge |
+| Math | Minimax | validated accuracy with stronger reasoning |
+| Sentiment | Minimax | validated label/aspect accuracy |
+| Summarization | Kimi | strong transformation quality |
+| NER | Kimi | 10/10 final affected-category gate |
+| Code debugging | Kimi | strongest validated code route |
+| Logic | Kimi | strong structured constraint answers |
+| Code generation | Kimi | strongest validated code generation |
 
-### Key modules
+The judge may advertise additional model families. They remain fallbacks until
+we can test them. The previous submission mismatch came from allowing the
+official roster to move sentiment and NER onto untested Gemma primaries.
 
-| Module | Role |
+## What is and is not runtime classification
+
+- The batched Fireworks classifier determines the category at runtime.
+- `eval/score.py` grades development outputs and is not copied into the Docker
+  runtime.
+- Deterministic solvers answer a small proven subset; they do not estimate model
+  correctness.
+- A local ONNX classifier is a valid future token optimization, but it must match
+  the current 160/160 audit and defer uncertain prompts remotely.
+
+## Evidence
+
+### Official
+
+The latest saved submission scored **89.5%** and reached **67th place**. The
+reported result did not include its token count, so the official token baseline
+is currently unknown.
+
+### Local live release gates
+
+| Artifact | Accuracy | Tokens | Requests | Errors | Wall |
+|---|---:|---:|---:|---:|---:|
+| `live-release-v2-accuracy-first-20260711` | 96.25% judged | 42,025 | 84 | 0 | 40.95s |
+| `live-release-v3-accuracy-first-20260711` | 96.25% judged | 41,952 | 85 | 0 | 79.20s |
+| `live-v2-ner-summary-release-final-20260711` | 19/20 | 15,616 | 21 | 0 | 18.28s |
+
+Classifier-only audits were **80/80 on variants2** and **80/80 on variants3**.
+This is why classifier replacement is an efficiency experiment, not the first
+suspect for an answer-quality regression.
+
+### Docker release gate
+
+- Public repository: `https://hub.docker.com/r/jeffklin303/amd-router`.
+- Platform: `linux/amd64`.
+- Compressed archive measured by the build gate: 76,047,173 bytes (0.08 GB).
+- Fresh public pull passed.
+- Floor-C and Floor-CL smoke paths both produced valid `results.json`.
+
+## Token optimization roadmap
+
+### Experiment 1 - establish token attribution
+
+Use the existing ledger to report tokens by:
+
+- classifier stage;
+- answer category;
+- prompt vs completion;
+- model;
+- retries/fallbacks.
+
+The official token count must be recorded on the next submission. Without it,
+rank movement cannot be attributed to a local estimate.
+
+### Experiment 2 - local classifier, remote uncertainty fallback
+
+Bundle a small CPU classifier such as an ONNX encoder. Do not use a multi-GB
+chat model merely because the image limit allows it. Required gate:
+
+- 160/160 on variants2 + variants3;
+- cold start comfortably below 60 seconds;
+- low-confidence prompts use the current remote batch classifier;
+- no change to downstream category routes.
+
+This removes one remote classifier request and its prompt tokens while keeping
+the proven classifier as a safety net.
+
+### Experiment 3 - per-category reasoning effort
+
+The current profile requests high reasoning globally. Add category-specific
+effort and test one category at a time:
+
+- first candidates for lower effort: sentiment, NER, summarization, simple QA;
+- retain high effort initially: math, logic, debugging, generation.
+
+Measure actual completion-token change. A lower setting that causes one extra
+hidden miss consumes the entire safe accuracy margin.
+
+### Experiment 4 - answer batching
+
+Batch only one low-coupling category per experiment. Sentiment and NER are the
+first candidates because their schemas are short and machine-checkable. Every
+row must be independently validated and malformed rows must rerun individually.
+
+### Experiment 5 - cap tuning
+
+Completion caps are ceilings, not guaranteed spend. Lower them only when the
+ledger shows a meaningful long tail and truncation detection is available.
+Use observed p95/p99 completions rather than arbitrary round numbers.
+
+### Experiment 6 - additional zero-token answers
+
+Promote a deterministic or local answer only after 100% precision on applicable
+public and OOD cases. A wrong local answer cannot be rescued by Fireworks.
+
+## Candidate promotion matrix
+
+| Gate | Required result |
 |---|---|
-| `agent/main.py` | orchestrator, I/O contract, atomic snapshots |
-| `agent/classify.py` | prompt → one of 8 categories |
-| `agent/gate.py` + `agent/solvers/*` | deterministic zero-token solvers |
-| `agent/remote.py` | Fireworks client, `ALLOWED_MODELS` routing, token ledger |
-| `agent/contracts.py` | remote prompt contracts + token caps |
-| `agent/local_llm.py` + `agent/local_gate.py` | Floor-CL local tier (off by default) |
-| `agent/verify/*` | math / logic / format / code checks |
+| Compile/self-checks | all pass |
+| Deterministic gate | 100% precision |
+| Local candidate gate | 100% accepted precision |
+| variants2 judged | at least 90%, no unexplained pass-to-fail |
+| variants3 judged | at least 90%, no unexplained pass-to-fail |
+| Remote errors/missing answers | zero |
+| Token change | measured decrease |
+| Scope | one optimization lever |
+| Docker | public pull + amd64 + both smokes |
 
----
+For the 19-task official set, prefer candidates that preserve all known answers.
+If an official experiment falls to 84.2%, stop spending the last task of margin
+until the regression is understood.
 
-## Latest results — `live-master-postmerge-full80-20260709` (2026-07-09)
+## Retired guidance
 
-Full 80 tasks, **live** Fireworks, judge on, code executed. This is the current
-post-merge master result after PRs #7-#10.
+The following are historical, not current instructions:
 
-| Metric | Value |
-|---|---|
-| **Judged accuracy** | **87.50% (70/80)** |
-| Strict accuracy | 83.75% (67/80) |
-| Total tokens | 8,840 (prompt 7,575 / completion 1,265) |
-| Remote requests | 40 (gate answered the other 40 at 0 tokens) |
-| Remote errors | 0 |
-| Est. cost | $0.0080 |
-| Wall time | 13.90s |
+- treating 42.1%, 47.4%, 57.9%, 65.71%, or 87.5% as the active baseline;
+- starting from an accuracy-recovery TODO;
+- making Gemma a primary route without development access;
+- changing multiple token levers in one image;
+- assuming a 10 GB image allowance means a large local LLM is runtime-safe;
+- using practice-set accuracy alone as a promotion decision.
 
-### Per-category (judged run)
-
-| Category | Pass/Total | Gate | Remote |
-|---|---:|---:|---:|
-| math_reasoning | 10/10 | 10 | 0 |
-| named_entity_recognition | 10/10 | 9 | 1 |
-| code_debugging | 9/10 | 4 | 6 |
-| sentiment_analysis | 10/10 | 5 | 5 |
-| actual_qa | 7/10 | 0 | 10 |
-| code_generation | 7/10 | 5 | 5 |
-| logic_puzzles | 7/10 | 7 | 3 |
-| summarization | 7/10 | 0 | 10 |
-
-### Remaining 13 strict losses (10 judged losses)
-
-- **logic (3):** `logic_005/006/008` — scorer wants a bare value; we emit
-  `{"answer":...,"valid":...}`. Likely format, not reasoning.
-- **QA (3):** `qa_005` verbose ("...was founded first"), `qa_007`, `qa_009`
-  unanswerable phrasing.
-- **summarization (3):** `summary_003/004/009` content/constraint misses.
-- **code_generation (3):** `gen_005/008/010` unit/schema strictness.
-- **code_debugging (1):** `debug_010` unit-test strictness.
-
-Format-shaped losses (logic + QA) are the cheapest points — likely fixable with a
-zero-token local reformat pass, no extra tokens.
-
----
-
-## Post-merge validation - master PRs #7-#10 (2026-07-09)
-
-Pulled `origin/master` at `f0c7126` into local `testing` by fast-forward. Local
-regression checks passed first, then a full live judged benchmark was run.
-
-| Check | Result |
-|---|---|
-| `python -m py_compile agent\contracts.py agent\remote.py agent\gate.py agent\solvers\sentiment_solve.py scripts\live_benchmark.py scripts\dashboard.py` | PASS |
-| `python -m agent.remote` | PASS, including active-param ranking, blank fallback, and `reasoning_effort` retry self-checks |
-| `AgentConfig.from_path('agent/config.track2.yaml')` | PASS: local tier enabled, `local_slots=4`, `self_consistency_k=1`, `latency_cap_s=10`; summary/code-generation stay remote |
-| `python -m eval.score` | PASS: gold-back 80/80, corrupted 0/80 |
-| `python -m scripts.acceptance_p2` | PASS: gate precision 100%, answered 40, holdout precision 100%, pipeline gate-proven 94/150 |
-| `python -m scripts.acceptance_p25` | PASS: local gate precision 100%, stub path reduced remote calls 56 -> 38 and tokens 4,654 -> 2,584 |
-| `python -m scripts.acceptance_p1` | PASS: synthetic run, valid JSON on kill, Floor-C default, verifier/module self-checks |
-| `python -m scripts.live_benchmark --floor floor-c --score-judge --env-file .env.local --out-dir .\benchmark_runs\live-master-postmerge-full80-20260709` | PASS: judged 87.50% (70/80), strict 83.75% (67/80), 8,840 tokens, 40 gate / 40 remote, 0 remote errors, 13.90s |
-
-The post-merge state preserves the default Track 1 Floor-C behavior while adding
-three opt-in/supporting improvements: safer remote fallback, active-parameter
-model ranking, and the Track 2 local profile. Track 2 still needs a real
-in-container local-model latency run before it should be treated as a scoring
-strategy.
-
----
-
-## Prior runs (context)
-
-| Run | Scope | Accuracy | Tokens | Notes |
-|---|---|---:|---:|---|
-| `live-master-postmerge-full80-20260709` | 80, judged | **87.50%** | 8,840 | current baseline |
-| `live-official-judged-floor-c-full80` | 80, judged | 86.25% | 8,857 | previous baseline |
-| `live-official-accessible-floor-c-full80-final` | 80, judge off | 65.71% scored | 7,719 | undercounted (summaries unscored, code not executed) |
-| `live-kimi-floor-c-full80` | 80 | — | 7,719 | transport proof |
-
-Lifetime live Fireworks spend across all runs: **~$0.053**.
-
----
-
-## Headroom (what we can spend for growth)
-
-Scored metric = tokens; accuracy gate must pass. Everything else is slack to
-convert into **zero-token local work**.
-
-| Constraint | Limit | Used | Headroom |
-|---|---|---|---|
-| Total runtime | 600s | ~11s | ~98% free |
-| Startup | 60s | ~instant (Floor-C) | ~60s |
-| Per remote call | 30s | <5s | ~25s |
-| Image (compressed) | 10GB | ~2.1GB | ~7.9GB |
-
-**Levers, both goals at once (tokens down + accuracy up):**
-
-1. Enable **Floor-CL** local tier — offloads remote tasks to zero-token local.
-2. **Local verify+reformat** pass — fixes format-only losses at 0 tokens.
-3. Bake a **stronger local model** (2.1GB → ~5GB is still legal).
-4. **Prompt compression** — 86% of tokens are prompt; pure efficiency win.
-
-Do **not** add self-consistency / multi-sampling: it multiplies the scored metric.
-
----
-
-## Compliance snapshot
-
-All hard rules in `AGENTS.md` pass (image size, amd64, I/O contract, env-driven
-keys/models, ALLOWED_MODELS-only, English, runtime budget). Two submission-time
-items remain: **push the image to a public registry** (currently local-only tag),
-and re-prove container startup/exit end-to-end via `scripts/build_and_size.sh`.
+Historical experiments remain available in Git history and ignored
+`benchmark_runs/`; they should not dominate the current onboarding path.

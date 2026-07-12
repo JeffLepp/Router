@@ -1,219 +1,83 @@
-IMPROVEMENTS LOG — AMD Hackathon ACT II, Track 1 router
-Audience: any model/agent continuing this work. Read RECOVERY_PLAN.md for the
-phase protocol; this file is the condensed "what we tried and what happened".
-Updated: 2026-07-11 (hidden score 47.4%).
+AMD Track 1 router - current experiment ledger
+Updated: 2026-07-11
 
-====================================================================
-1. SCOREBOARD (hidden set = competition submissions; gate not yet passed)
-====================================================================
-42.1%  token-efficiency profile (local heuristic solvers, batching, compact
-       prompts, truncated inputs, invented answer formats)  [pre-recovery]
-57.9%  remote-everything profile: all tasks to Fireworks, reasoning_effort=
-       high, accuracy_first model choice, bigger caps — but still with input
-       truncation and invented NER format
-47.4%  Phase 0-3 recovery build (commit a203f85 lineage): full un-truncated
-       prompts, gold-schema answers, reasoning OFF, universal fallback
-       contract, NER type normalization
+CURRENT OFFICIAL BASELINE
+=========================
+Accuracy: 89.5% (approximately 17/19)
+Placement: 67th
+Phase: lower Fireworks tokens while staying above 80%
+Accuracy budget: one additional miss (16/19 = 84.2%; 15/19 = 78.9%)
+Frozen image: jeffklin303/amd-router:accuracy-first-20260711
+Digest: sha256:fafd46eef741e6ef1660c05084a1893807572c50b650b85399266d04e82bc0bf
 
->>> BEST HIDDEN RESULT SO FAR: the 57.9% build = commit ca67094, the original
->>> `testing` branch state before the Phase 0-3 recovery. Every "improvement"
->>> since has scored WORSE on the hidden set. Treat ca67094 as the reference
->>> baseline: `git show ca67094:agent/config.yaml` for its exact knobs
->>> (mandatory remote, reasoning_effort: high, accuracy_first: true). Its
->>> closest equivalent on current code: set reasoning_effort: high +
->>> accuracy_first: true in agent/config.yaml. Any new submission should be
->>> justified against it, and reverting to ca67094 outright is a legitimate
->>> A/B arm. (Caveat: it still FAILED the gate; it is a floor, not a goal.)
+CURRENT EVIDENCE
+================
+Remote classifier:
+- variants2: 80/80
+- variants3: 80/80
+- combined: 160/160
 
-Local adversarial sets (built Phase 2, hand-verified golds):
-  eval/devset/variants2.json  68.75% (best), 66.25% on live re-test
-  eval/devset/variants3.json  60%
-Practice set (dataset.json, 80 tasks): 86-90% — NOT predictive of hidden.
+Full live release gates:
+- variants2: 96.25% judged, 42,025 tokens, 84 requests, 0 errors
+- variants3: 96.25% judged, 41,952 tokens, 85 requests, 0 errors
 
-Leader bar: Kestrel 100% @ 2,616 tokens (all-remote, no reasoning, compact
-prompts); Metis 94.7% @ 1,797 (local+calibrated escalation); yassai 89.5% @
-1,377 (batching). Accuracy gate first; tokens only matter after it passes.
+Final affected-category check:
+- NER: 10/10
+- summarization: 9/10
+- remote errors: 0
 
-====================================================================
-2. CURRENT PIPELINE (branch testing)
-====================================================================
-main.py: read /input/tasks.json -> regex classify (agent/classify.py) ->
-strict gate solves only explicit arithmetic locally (agent/gate.py) ->
-everything else to Fireworks (agent/remote.py), one call per task, no
-batching -> per-category contract builds prompt + assembles answer
-(agent/contracts.py) -> atomic snapshots to /output/results.json.
-Classifications with confidence < 0.8 use a "universal" contract: a format
-menu listing all 8 categories' gold output schemas.
-Gold output schemas (from dataset.json expected_answer):
-  qa: bare string | math: bare number | sentiment: {"sentiment":...}
-  ner: {"entities":[{"text","type"}]} | logic: {"answer":...,"valid":bool}
-  summary: plain text (LLM-judged) | code: runnable fence-free code string.
+Docker:
+- public linux/amd64
+- 76,047,173 bytes compressed (0.08 GB)
+- fresh pull and both smoke paths passed
 
-====================================================================
-3. WHAT WAS TRIED, IN ORDER, WITH RESULTS
-====================================================================
-[pre-recovery] Local heuristic solvers + batching + compact prompts:
-  42.1% hidden vs ~86% practice. Massive overfit. Local solvers were NOT the
-  main problem though — see next line.
-[recovery test] Disable all local solvers, remote-everything, reasoning high:
-  57.9%. Proved the REMOTE pipeline itself loses ~40 points.
-[Phase 0] Restored dataset.json; made eval/score.py strict (rejects our own
-  invented formats). Practice scores dropped as expected — scorer had been
-  circular (it accepted formats only we emitted, e.g. "text|TYPE" NER lines).
-[Phase 1] (commit ad84182)
-  - Full un-truncated task prompts (deleted compress_prompt/_summary_kernel
-    which cut inputs to 900-1200 chars / first-5-sentences summaries).
-  - Model emits gold schema directly; assembly is fail-open pass-through
-    (deleted aspect-noun alias maps, last-line answer extraction, literal
-    "none"->invalid matching, polarity defaults).
-  - reasoning_effort off; reasoning_content NEVER surfaced as an answer;
-    blank completion falls back to next-ranked model.
-  - Universal format-menu contract for classifier confidence < 0.8.
-[Phase 2] (commit cc3033f) Built variants2/3.json: 160 adversarial tasks,
-  paraphrased to dodge the classifier regexes, longer passages, fresh
-  entities/numbers, hand-verified golds. Classifier audit: only ~34%
-  accuracy on these (55/160) -> ~65% of tasks take the universal contract.
-[Phase 3 iterations] (commits ec4e906, a203f85)
-  Baseline locked at 68.75% variants2 / 60% variants3. Then:
-  - Attempt 1 dual-model agreement votes: REGRESSED to 66.25%.
-  - Attempt 2 accuracy_first (prefer reasoning models): NEUTRAL (dev
-    ALLOWED_MODELS pool had no reasoning models to prefer).
-  - Attempt 3 bigger max_tokens: FLAT (61.25% variants3) — token caps are
-    not the bottleneck.
-  - Attempt 4 strengthened universal contract wording: REGRESSED to 62.5%
-    (suppressing reasoning text hurt logic answers).
-  - Attempt 5 minimax-only override: ALL CALLS ERRORED — overriding
-    ALLOWED_MODELS with names the key cannot actually call fails hard.
-    (Important: see Section 5, failover defect.)
-[Submission] 47.4% hidden — 10.5 points BELOW the cruder 57.9% build.
+WHY THE 89.5% BUILD IS THE BASELINE
+===================================
+- One remote batch classifier chooses among all eight task categories.
+- The classifier is validated on paraphrased OOD sets.
+- Minimax is primary for QA, math, and sentiment.
+- Kimi is primary for summaries, NER, debugging, logic, and generation.
+- Untestable Gemma models are fallback-only rather than silent primary routes.
+- Full code prompts are preserved, category output schemas are explicit, and
+  structurally incomplete code gets one cross-model retry.
+- Strict deterministic solvers answer only proof-backed cases.
 
-====================================================================
-4. RULED OUT (do not re-try without new evidence)
-====================================================================
-- Input truncation / "kernel" extraction: guaranteed zeros on long variants.
-- Invented intermediate answer formats (NER text|TYPE lines etc.): only our
-  own scorer ever parsed them.
-- Lossy post-hoc rewriting (aspect alias maps, last-line extraction).
-- Trusting practice-set (dataset.json) scores: 86-90% there coexists with
-  42-58% hidden.
-- Bigger token caps as an accuracy lever (Attempt 3).
-- Dual-model agreement as implemented (Attempt 1 regressed).
-- Local heuristic sentiment/NER/logic/code solvers as submission defaults:
-  unproven OOD; gate stays strict-arithmetic-only until a variant-set
-  precision suite passes 100%.
+NEXT TOKEN EXPERIMENTS
+======================
+Run exactly one lever per candidate:
 
-====================================================================
-5. OPEN HYPOTHESES FOR THE 47.4% (ranked by evidence)
-====================================================================
-H1. [IMPLEMENTED 2026-07-11, next submission tests it] No cross-model
-    failover on request ERRORS: agent/remote.py complete() used to switch
-    models only on BLANK content; on repeated HTTP errors it retried the
-    SAME model then gave up -> task scored zero. CATEGORY_MODEL_PATTERNS
-    prefers gemma models for sentiment and NER. If the submission harness's
-    ALLOWED_MODELS listed gemma IDs that were not actually callable
-    (exactly the Attempt 5 failure signature), sentiment+NER (~25% of
-    tasks) would blank out — a plausible cause of the 47.4%.
-    Fix shipped: (a) hard failures (404/401/403, "model not found") are
-    blacklisted per-run and every error rotates the call to the next-ranked
-    different model; (b) a 1-token startup probe per allowed model
-    (config: remote.probe_models) drops uncallable models before any task
-    call. Transient errors rotate but never blacklist.
-    Note: gemma names in CATEGORY_MODEL_PATTERNS are only preference
-    regexes matched against the runtime ALLOWED_MODELS env; nothing
-    hardcodes model IDs into the image. Merely "allowing" gemma cannot hurt
-    — selecting a listed-but-broken model could, before this fix.
-H2. Classifier/format coupling remains the ceiling: 34% classifier accuracy
-    on paraphrased prompts; the universal fallback answers are measurably
-    worse than correct per-category contracts (68.75% ceiling on variants2).
-    Candidate fixes: (a) classify WITH the answer call — single contract for
-    all tasks that both identifies type and answers (Kestrel-style); (b) a
-    real local classifier (tiny ONNX/embedding, yassai-style); (c) spend one
-    cheap remote call to classify batches of tasks (violates leader
-    principle #1, but we are gate-failing, and it is ~200 tokens total).
-H3. Reasoning was never the enemy: the best hidden score (57.9%) ran
-    reasoning_effort=high with reasoning-model preference. Attempt 2 could
-    not test this (dev pool had no reasoning models). If the submission
-    pool has them, math/logic/code may want reasoning back ON with content
-    (not reasoning_content) parsed as the answer and caps sized so the
-    final answer survives.
-H4. Hidden-set run-to-run variance: 42.1 / 57.9 / 47.4 came from three
-    different builds, but prompts may also be resampled per submission.
-    Do not over-fit to single-run deltas; submissions cost a 10/hr slot,
-    consider A/B-ing one variable across two submissions.
-H5. Summarization judging is opaque (semantic_similarity /
-    contains_essential_points). We assume plain text is fine; nobody has
-    validated what the hidden judge rewards (length? coverage? format?).
+1. Token attribution by classifier/category/model/prompt/completion/retry.
+2. Small local ONNX classifier with remote fallback below confidence threshold.
+   Promotion requirement: retain 160/160 classifier accuracy.
+3. Per-category reasoning effort, starting with sentiment, NER, summary, and QA.
+4. Same-category answer batching with per-row validation and individual reruns.
+5. Completion-cap reductions based on measured p95/p99 usage.
+6. Additional deterministic/local answers only at 100% OOD precision.
 
-====================================================================
-6. HOW TO VALIDATE ANY CHANGE (in order, cheap to expensive)
-====================================================================
-python -m agent.contracts && python -m agent.remote && python -m agent.classify
-python -m eval.score                      # gold-back 80/80, corrupted 0/80
-python -m scripts.acceptance_p1           # 13 tests, includes mock e2e
-python -m scripts.live_benchmark --mock --score-judge --out-dir benchmark_runs/mock-<name>
-# PAID (needs explicit user approval; ~$0.03-0.06 per full-80 run):
-python -m scripts.live_benchmark ... --env-file .env.local   # on variants2/3
-Rules: work on branch testing; never print .env.local; never hardcode model
-IDs/keys/URLs into the image; update RECOVERY_PLAN.md progress log per
-session; hidden submissions are rate-limited to 10/hour.
+PROMOTION RULE
+==============
+- Local compile and acceptance checks pass.
+- variants2 and variants3 each remain at least 90% judged.
+- No unexplained pass-to-fail changes.
+- Zero missing answers and remote errors.
+- Actual tokens decrease.
+- The frozen image tag is not overwritten.
+- One configuration/code lever changed.
 
-====================================================================
-7. CONTROLLED EXPERIMENTS FROM ca67094 (2026-07-11)
-====================================================================
-[Remote batch classifier v1 — KEEP, pending variants3 confirmation]
-Control on variants2 (ca67094): 35.00% strict / 38.75% judged, 30,518
-tokens, 80 requests, 0 remote errors.
+EXPERIMENT RECORD TEMPLATE
+==========================
+Name:
+Single changed lever:
+Control commit/image:
+Candidate commit/image:
+variants2 accuracy/tokens/errors:
+variants3 accuracy/tokens/errors:
+Official accuracy/tokens/rank:
+Pass-to-fail review:
+Decision: KEEP / REJECT / NEEDS RETEST
 
-Classifier-only audit:
-  - accuracy-first QA model failed to return stable parseable mappings
-    (reasoning text / truncated JSON), so this arm was rejected.
-  - direct transformation model: 80/80 correct labels on variants2, four
-    20-task calls, 6,742 tokens, 0 errors. At the real 19-task judge size
-    this is one classifier call.
-
-Full variants2 result with classification as the only answer-path lever:
-  51.25% strict / 55.00% judged, 34,830 tokens, 84 requests, 0 errors.
-  Delta vs control: +16.25 strict points and +16.25 judged points.
-  Sentiment 3/10 -> 8/10, summaries 4/10 -> 8/10, debugging 4/10 -> 7/10.
-  Logic and NER remained 0/10, confirming their answer contracts/model
-  behavior are separate bottlenecks. Confirm on variants3 before changing
-  NER or logic.
-
-Classifier confirmation on variants3:
-  classifier-only 80/80 labels (4 calls, 6,998 tokens); full run improved
-  31.25% -> 56.25% strict and 33.75% -> 58.75% judged, 84 requests, 0
-  errors. Decision: KEEP remote batch classification as the accuracy-first
-  prototype; later replace the one real-judge call with local ONNX only if
-  this routing accuracy can be preserved.
-
-[NER gold-schema path — LOCKED]
-  Initial JSON schema fix moved variants2 NER 0/10 -> 2/10. Inspection
-  showed correct extraction trapped in reasoning by the 160-token cap.
-  NER-only cap 1,024: 6/10. Conservative type normalization
-  (PLACE/GPE->LOCATION, COMPANY->ORGANIZATION, task-domain labels) plus
-  dosage-span trimming: 9/10 variants2. The frozen v4 prompt, named-event
-  filter, 45s timeout, and 4,096 ceiling scored 10/10 on variants3 and then
-  10/10 on variants2, with 0 errors. Actual totals were 7,141 and 6,202
-  tokens respectively; the cap is headroom, not forced spend.
-
-[Gold-shape/category recovery — PROMOTION GATE PASSED]
-  Sentiment cap 1,024: 10/10 on variants2 and 10/10 variants3.
-  Logic gold JSON + invariant-query wording + missing-data proof + cap 1,024:
-  10/10 variants2; 9/10 variants3 live, with the sole "worked out" synonym
-  fixed deterministically afterward.
-  Math bare/list/unanswerable assembly + two generic impossibility proofs:
-  10/10 on both sets.
-  QA bare comparison answer + exact article preservation + dated-term rule:
-  10/10 on both sets.
-  Full-passage summaries + cap 2,048: 10/10 variants2, 9/10 variants3.
-  Code debugging: 90% judged on both sets. Code generation: 100% judged
-  variants2, 90% judged variants3. Remaining strict-only misses are alternate
-  Java/C/C++ implementations the host scorer cannot compile but judge accepts.
-
-Full frozen-profile promotion runs:
-  variants2: 75/80 strict (93.75%), 77/80 judged (96.25%), 48,556 tokens,
-  84 requests, 0 remote errors, 57.98s.
-  variants3: 73/80 strict (91.25%), 77/80 judged (96.25%), 40,474 tokens,
-  83 requests, 1 remote error, 59.27s.
-  Combined judged: 154/160 = 96.25%. Both local adversarial gates exceed
-  90%; promote the frozen experiment profile to the default runtime config.
+RETIRED HISTORY
+===============
+The earlier 42.1%, 47.4%, 57.9%, 65.71%, and 87.5% phases are no longer
+active guidance. Their details remain in Git history and old benchmark artifacts.
+Do not repeat those recovery plans unless new evidence directly requires it.

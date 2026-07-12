@@ -70,13 +70,12 @@ def _normalize_caps(max_tokens: dict[str, int] | None) -> dict[str, int]:
 
 def compress_prompt(category: str, task_prompt: str) -> str:
     category = canonical_category(category)
-    if category == "summarization":
+    if category in {"summarization", "code_debugging", "code_generation"}:
+        # Code tasks often put the defect in a second file/block or state the required fix
+        # after the fence. Keeping only the first fenced block made multi-file debugging
+        # prompts impossible (the model saw utils.py but not the broken caller in main.py).
         return task_prompt
     text = re.sub(r"\s+", " ", task_prompt.strip())
-    if category in {"code_debugging", "code_generation"}:
-        fenced = _extract_fenced_code(task_prompt)
-        if fenced:
-            return shorten(fenced, width=1600, placeholder=" ...")
     width = 1200 if category != "actual_qa" else 900
     return shorten(text, width=width, placeholder=" ...")
 
@@ -176,7 +175,14 @@ def _qa_answer(payload: str, task_prompt: str) -> str:
 def _debug_answer(payload: str, task_prompt: str) -> str:
     body = _strip_code_fences(payload)
     lower_prompt = task_prompt.lower()
-    if "review" in lower_prompt or "point out what is actually wrong" in lower_prompt:
+    asks_for_diagnosis = bool(
+        re.search(
+            r"\b(?:review|diagnos(?:e|is)|comment|explain|identify)\b|"
+            r"point out what is actually wrong",
+            lower_prompt,
+        )
+    )
+    if asks_for_diagnosis:
         original = re.findall(r"assert\s+[^\n]+?==\s*([^\s#\n]+)", task_prompt)
         corrected = re.findall(r"assert\s+[^\n]+?==\s*([^\s#\n]+)", body)
         if original and corrected and original[-1] != corrected[-1]:
@@ -196,10 +202,16 @@ _ENTITY_TYPE_ALIASES = {
     "CITY": "LOCATION",
     "COUNTRY": "LOCATION",
     "PATIENT NAME": "PATIENT",
+    "PATIENT_NAME": "PATIENT",
     "DOLLAR_AMOUNT": "MONEY",
     "DOLLAR AMOUNT": "MONEY",
     "AMOUNT OF MONEY": "MONEY",
     "DRIVER NAME": "DRIVER",
+    "DRIVER_NAME": "DRIVER",
+    "CUSTOMER NAME": "CUSTOMER",
+    "CUSTOMER_NAME": "CUSTOMER",
+    "PROPERTY ADDRESS": "PROPERTY_ADDRESS",
+    "MLS NUMBER": "MLS_NUMBER",
     "TRACKING NUMBER": "TRACKING_NUMBER",
     "DESTINATION CITY": "DESTINATION_CITY",
 }
@@ -383,7 +395,9 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
             "summarization",
             caps["summarization"],
             "Summarize the full text as plain text. Keep every key fact, name, number, and action "
-            "item. Obey the requested format, length, and any exclusion exactly. Output only the "
+            "item. Obey the requested format, length, and any exclusion exactly. If attendance-only "
+            "or no-update details are excluded, omit lines such as someone joining late or having "
+            "no updates even when they appear in the source. Output only the "
             "summary â€” no title, preamble, code fences, or [bracketed] placeholders.",
         ),
         "named_entity_recognition": Contract(
@@ -394,7 +408,12 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
             "TYPE must be uppercase and should use exactly the entity types requested by the task. "
             "Use ORGANIZATION for companies, LOCATION for places/countries/cities, and MONEY for "
             "currency amounts. For domain roles use labels such as PATIENT, MEDICATION, DOSAGE, "
-            "DRIVER, TRACKING_NUMBER, and DESTINATION_CITY exactly. If the text explicitly gives "
+            "DRIVER, TRACKING_NUMBER, and DESTINATION_CITY exactly. When the task names a domain "
+            "role, derive the uppercase underscore label from its requested noun phrase (for "
+            "example customer name -> CUSTOMER, property address -> PROPERTY_ADDRESS, and MLS "
+            "number -> MLS_NUMBER) instead of replacing it with PERSON or LOCATION. DATE means an "
+            "explicit calendar date; omit relative phrases such as 'a week later' unless the task "
+            "specifically requests relative temporal expressions. If the text explicitly gives "
             "one span two roles, include one object for each role.",
         ),
         "code_debugging": Contract(

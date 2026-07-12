@@ -331,8 +331,19 @@ def test_model_preferences() -> None:
     assert choose_model_for_category("code_generation", models) == "kimi-k2p7-code"
     assert choose_model_for_category("code_debugging", models) == "kimi-k2p7-code"
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
-    assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
-    assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
+    assert choose_model_for_category("sentiment_analysis", models) == "minimax-m3"
+    assert choose_model_for_category("named_entity_recognition", models) == "kimi-k2p7-code"
+    expected = {
+        "actual_qa": "minimax-m3",
+        "math_reasoning": "minimax-m3",
+        "sentiment_analysis": "minimax-m3",
+        "summarization": "kimi-k2p7-code",
+        "named_entity_recognition": "kimi-k2p7-code",
+        "code_debugging": "kimi-k2p7-code",
+        "logic_puzzles": "kimi-k2p7-code",
+        "code_generation": "kimi-k2p7-code",
+    }
+    assert {category: choose_accuracy_model(category, models) for category in expected} == expected
     rigorous = models + ["gpt-reasoning-70b"]
     assert choose_accuracy_model("logic_puzzles", rigorous) == "gpt-reasoning-70b"
     assert choose_accuracy_model("math_reasoning", rigorous) == "gpt-reasoning-70b"

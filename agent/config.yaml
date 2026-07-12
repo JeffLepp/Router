@@ -48,7 +48,9 @@ batching:
   code_enabled: false
   max_batch_size: 10
 remote:
-  timeout_seconds: 45
+  # Accuracy-first: the 19-task judge has ample wall-clock headroom, while code models can
+  # spend 25-45s in hidden reasoning before emitting a complete answer.
+  timeout_seconds: 90
   retries: 2
   temperature: 0
   # One direct-model batch classifies the real judge's approximately 19 tasks.
@@ -65,7 +67,9 @@ max_tokens:
   actual_qa: 1024
   math_reasoning: 512
   sentiment_analysis: 1024
-  summarization: 2048
+  # Structured summaries can use most of a 2K completion budget in hidden reasoning and then
+  # truncate an action item; 4K completed the same workload within the runtime envelope.
+  summarization: 4096
   named_entity_recognition: 4096
   code_debugging: 4096
   logic_puzzles: 1024

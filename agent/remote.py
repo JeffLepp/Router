@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import json
 import os
 import re
@@ -30,17 +31,21 @@ REASONING_RE = re.compile(r"\b(r1|reason(?:ing)?|thinking|think|qwq|gpt-oss)\b",
 # categories. Keep minimax only where world knowledge or nuance actually earns it back:
 #   actual_qa   - kimi answered "unanswerable" for a knowable question (qa_007); minimax knew it.
 #   sentiment   - minimax 4/5 vs kimi 3/5 on the non-gate tasks.
-# Transformation categories (summarize/extract/deduce) read from the prompt, so they take the
-# cheap model. Patterns are an ordered preference; unmatched families fall through to rank_models.
+# The first two preferences are the only families we can exercise through the development
+# proxy. The official judge also advertises Gemma models, but routing to an unmeasured model
+# made the submitted image behave differently from every live gate. Keep Gemma as transport
+# fallback only, after the validated Minimax/Kimi pair.
+#
+# Patterns are an ordered preference; unmatched families fall through to rank_models.
 CATEGORY_MODEL_PATTERNS = {
-    "code_debugging": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "code_generation": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "sentiment_analysis": (r"gemma.*26.*it", r"gemma.*31.*nvfp4", r"minimax"),
-    "math_reasoning": (r"minimax", r"gemma.*31.*it", r"gemma.*26.*it"),
-    "logic_puzzles": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "actual_qa": (r"minimax", r"gemma.*31.*it", r"gemma.*31.*nvfp4"),
-    "summarization": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "named_entity_recognition": (r"gemma.*31.*it", r"kimi.*code", r"minimax"),
+    "code_debugging": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
+    "code_generation": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
+    "sentiment_analysis": (r"minimax", r"kimi.*code", r"gemma.*26.*it", r"gemma.*31.*it"),
+    "math_reasoning": (r"minimax", r"kimi.*code", r"gemma.*31.*it", r"gemma.*26.*it"),
+    "logic_puzzles": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
+    "actual_qa": (r"minimax", r"kimi.*code", r"gemma.*31.*it"),
+    "summarization": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
+    "named_entity_recognition": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
 }
 
 
@@ -263,7 +268,7 @@ class RemoteClient:
             headers["Authorization"] = f"Bearer {self.api_key}"
         deadline = time.monotonic() + self.timeout
         last_error: BaseException | None = None
-        blank_fallback_used = False
+        quality_fallback_used = False
         for attempt in range(self.retries + 1):
             remaining = max(0.5, deadline - time.monotonic())
             try:
@@ -279,15 +284,21 @@ class RemoteClient:
                 content = _message_content(data).strip()
                 usage = dict(data.get("usage", {}) or {})
                 self.ledger.add(call.task_id, model, usage, call.estimated_tokens)
-                # A blank completion scores zero (reasoning models can burn the
-                # whole budget on hidden reasoning), so spend one retry on the
-                # next-ranked model before returning it.
+                # A blank or structurally truncated completion scores zero (code models can
+                # burn most of the budget in hidden reasoning), so spend one retry on the
+                # next validated model before returning it.
+                incomplete = _code_payload_incomplete(call, content)
                 fallback = _other_model(
                     model, self._usable_models(), call.category, self.accuracy_first
                 )
-                if content or blank_fallback_used or fallback is None or attempt >= self.retries:
+                if (
+                    (content and not incomplete)
+                    or quality_fallback_used
+                    or fallback is None
+                    or attempt >= self.retries
+                ):
                     return content
-                blank_fallback_used = True
+                quality_fallback_used = True
                 model = fallback
             except BaseException as exc:
                 last_error = exc
@@ -326,6 +337,41 @@ def _other_model(
     if accuracy_first and category is not None:
         return choose_accuracy_model(category, remaining)
     return rank_models(remaining)[0]
+
+
+_DIAGNOSIS_REQUEST_RE = re.compile(
+    r"\b(?:review|diagnos(?:e|is)|comment|explain|identify)\b|"
+    r"point out what is actually wrong",
+    re.I,
+)
+
+
+def _code_payload_incomplete(call: RemoteCall, content: str) -> bool:
+    """Catch only high-confidence truncation signals before accepting code output."""
+    if call.category not in {"code_debugging", "code_generation"} or not content.strip():
+        return not content.strip()
+    # A diagnosis can legitimately quote one incomplete line from the source.
+    if call.category == "code_debugging" and _DIAGNOSIS_REQUEST_RE.search(call.prompt):
+        return False
+
+    text = content.strip()
+    if text.startswith("```") and text.count("```") < 2:
+        return True
+    fenced = re.search(r"```[A-Za-z0-9_+#.-]*\s*\n(.*?)```", text, re.S)
+    if fenced:
+        text = fenced.group(1).strip()
+
+    lower_prompt = call.prompt.lower()
+    if "python" in lower_prompt and re.search(r"^(?:async\s+)?def\s+|^class\s+", text, re.M):
+        try:
+            ast.parse(text)
+        except SyntaxError:
+            return True
+    # C-family methods/classes require balanced blocks. This also catches the common
+    # provider failure where output ends halfway through `return true`.
+    if "{" in text and text.count("{") != text.count("}"):
+        return True
+    return False
 
 
 def _param_rejection(exc: BaseException) -> bool:
@@ -397,8 +443,8 @@ def _self_check() -> None:
     assert choose_model_for_category("code_generation", models) == "kimi-k2p7-code"
     assert choose_model_for_category("code_debugging", models) == "kimi-k2p7-code"
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
-    assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
-    assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
+    assert choose_model_for_category("sentiment_analysis", models) == "minimax-m3"
+    assert choose_model_for_category("named_entity_recognition", models) == "kimi-k2p7-code"
     # Knowledge stays on minimax; transformations take the low-overhead model.
     two = ["minimax-m3", "kimi-k2p7-code"]
     assert choose_model_for_category("actual_qa", two) == "minimax-m3"
@@ -406,6 +452,26 @@ def _self_check() -> None:
     assert choose_model_for_category("summarization", two) == "kimi-k2p7-code"
     assert choose_model_for_category("logic_puzzles", two) == "kimi-k2p7-code"
     assert choose_model_for_category("named_entity_recognition", two) == "kimi-k2p7-code"
+
+    # The judge roster must not silently move primary traffic onto locally untestable Gemmas.
+    official = [
+        "minimax-m3",
+        "kimi-k2p7-code",
+        "gemma-4-31b-it",
+        "gemma-4-26b-a4b-it",
+        "gemma-4-31b-it-nvfp4",
+    ]
+    expected = {
+        "actual_qa": "minimax-m3",
+        "math_reasoning": "minimax-m3",
+        "sentiment_analysis": "minimax-m3",
+        "summarization": "kimi-k2p7-code",
+        "named_entity_recognition": "kimi-k2p7-code",
+        "code_debugging": "kimi-k2p7-code",
+        "logic_puzzles": "kimi-k2p7-code",
+        "code_generation": "kimi-k2p7-code",
+    }
+    assert {name: choose_accuracy_model(name, official) for name in expected} == expected
     assert _param_count("gemma-4-26b-a4b-it") == 4.0
     assert _param_count("gemma-4-31b-it") == 31.0
     assert _param_count("mixtral-8x7b-instruct") == 7.0
@@ -413,6 +479,22 @@ def _self_check() -> None:
     # Active-param awareness ranks the a4b MoE cheapest among unknown families.
     ranked = rank_models(["foo-9b-it", "foo-26b-a4b-it"])
     assert ranked[0] == "foo-26b-a4b-it", ranked
+    java_call = RemoteCall(
+        task_id="code",
+        category="code_generation",
+        prompt="Write a Java method.",
+        max_tokens=128,
+    )
+    assert _code_payload_incomplete(java_call, "public boolean ok() { return t")
+    assert not _code_payload_incomplete(java_call, "public boolean ok() { return true; }")
+    python_call = RemoteCall(
+        task_id="py",
+        category="code_generation",
+        prompt="Write a Python function.",
+        max_tokens=128,
+    )
+    assert _code_payload_incomplete(python_call, "def f(x):\n    return (")
+    assert not _code_payload_incomplete(python_call, "def f(x):\n    return x")
     asyncio.run(_self_check_complete())
 
 
@@ -435,6 +517,29 @@ async def _self_check_complete() -> None:
         answer = await RemoteClient().complete(call)
         assert answer == "4", answer
         assert len(models_called) == 2 and models_called[0] != models_called[1], models_called
+
+        # Structurally truncated code also rotates once instead of shipping a certain zero.
+        code_models: list[str] = []
+
+        async def truncated_then_complete(url, payload, headers, timeout):
+            code_models.append(payload["model"])
+            content = (
+                "public boolean ok() { return t"
+                if len(code_models) == 1
+                else "public boolean ok() { return true; }"
+            )
+            return {"choices": [{"message": {"content": content}}], "usage": {}}
+
+        _post_json = truncated_then_complete
+        code_call = RemoteCall(
+            task_id="code",
+            category="code_generation",
+            prompt="Write a Java method.",
+            max_tokens=128,
+        )
+        answer = await RemoteClient().complete(code_call)
+        assert answer.endswith("true; }"), answer
+        assert len(code_models) == 2 and code_models[0] != code_models[1], code_models
 
         # 2. HTTP 400 on `reasoning_effort` retries without the param.
         efforts_sent: list[bool] = []
