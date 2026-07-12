@@ -68,14 +68,14 @@ remote:
   reasoning_effort: high
   # Phase 1: direct-output work does not need hidden chain-of-thought. Adaptive
   # categories retain high effort for coupled constraints, sarcasm, and exclusions.
-  # Phase 2 aggressive: sentiment answers direct (labels are cheap, sarcasm risk accepted),
-  # summaries reason only for structured/exclusion constraints, math templates cover the
-  # mechanical cases so the remainder answers direct. Logic and code keep full reasoning.
+  # Phase 2 aggressive: direct output for every extraction/label/compression category —
+  # hidden reasoning is spent only where deduction IS the task (logic, code). Accepted
+  # risks at the 80% floor: sarcasm, structured summaries, ambiguous entities.
   reasoning_effort_by_category:
     actual_qa: none
-    named_entity_recognition: adaptive
+    named_entity_recognition: none
     sentiment_analysis: none
-    summarization: adaptive
+    summarization: none
     math_reasoning: none
   usd_per_mtok: 0.9
   dev_spend_cap: 0.0
