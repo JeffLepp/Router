@@ -240,6 +240,27 @@ async def _run_remote_classifier(
     confidence = min(1.0, max(0.6, float(cfg.get("classifier_confidence", 0.99) or 0.99)))
     original_effort = str(getattr(client, "reasoning_effort", "") or "")
     overrides: dict[str, tuple[str, float]] = {}
+
+    if bool(cfg.get("classifier_prefilter_enabled", False)):
+        from agent.classify import prefilter_category
+
+        ruled = []
+        deferred = []
+        for state in states:
+            category = prefilter_category(state.task.prompt)
+            if category is None:
+                deferred.append(state)
+            else:
+                overrides[state.task.task_id] = (category, confidence)
+                ruled.append(state.task.task_id)
+        print(
+            f"classifier_prefilter ruled={len(ruled)}/{len(states)} deferred={len(deferred)}",
+            file=sys.stderr,
+        )
+        states = deferred
+        if not states:
+            return overrides, client
+
     client.reasoning_effort = ""
     try:
         for offset in range(0, len(states), batch_size):

@@ -55,6 +55,9 @@ remote:
   temperature: 0
   # One direct-model batch classifies the real judge's approximately 19 tasks.
   classifier_enabled: true
+  # Zero-token rule prefilter: labels only unambiguous shapes (0 wrong on all 280
+  # labeled dev tasks), defers the rest into the remote batch below.
+  classifier_prefilter_enabled: true
   classifier_batch_size: 20
   classifier_max_tokens: 1024
   classifier_confidence: 0.99

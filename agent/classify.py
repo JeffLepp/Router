@@ -117,6 +117,65 @@ _CODE_GEN_HINTS = re.compile(
 )
 
 
+# --- Zero-token prefilter -------------------------------------------------
+# Precision-first rules validated at 0 wrong / 280 labeled tasks (dataset.json,
+# variants, variants2, variants3; see scripts/prefilter_audit.py). A rule fires
+# only on cues intrinsic to the task shape; anything ambiguous returns None and
+# defers to the remote classifier. QA/math/logic defer by design.
+_PF_ENTITY = re.compile(
+    r"\b(person|persons|people|compan(?:y|ies)|organi[sz]ations?|locations?|"
+    r"places?|dates?|money|amounts?|events?|entit(?:y|ies))\b"
+)
+_PF_SHAPE = re.compile(
+    r"summari|gist|recap|boil .{0,15}down|condense|tl;?dr|one sentence|"
+    r"single sentence|a sentence or two|one line|bullet"
+)
+_PF_BROKEN = re.compile(
+    r"bug|error|fix|debug|supposed to|but it|doesn'?t|does not|instead|"
+    r"incorrect|wrong|fails?|crash"
+)
+_PF_LANG = re.compile(r"\b(python|javascript|java|sql|c\+\+|c#|regex)\b|\bin c\b")
+_PF_ARTIFACT = re.compile(r"\b(function|method|query|class|script|program|table)\b")
+_PF_INSTRUCT = re.compile(
+    r"\b(write|creat|implement|summari|extract|identify|list|name|find|design|"
+    r"give|tell|calculat|solv|explain|translat|convert|pull out|pick out|"
+    r"note each|what|which|who|how)\w*"
+)
+
+
+def prefilter_category(prompt: str) -> str | None:
+    """Return a category only when the surface form is unambiguous, else None."""
+    text = prompt.strip()
+    low = text.lower()
+    has_fence = "```" in text
+    entity_hits = len(_PF_ENTITY.findall(low))
+    broken = _PF_BROKEN.search(low)
+
+    if has_fence and broken:
+        return "code_debugging"
+    if re.search(r"\bsummari", low) or (_PF_SHAPE.search(low) and len(text) > 200):
+        return "summarization"
+    if not has_fence and not broken and _PF_LANG.search(low) and _PF_ARTIFACT.search(low):
+        return "code_generation"
+    if entity_hits >= 2 and re.search(r"text|passage|below|following|mentioned|sentence|:", low):
+        return "named_entity_recognition"
+    if re.search(r"does it follow|can you conclude|answer yes or no", low):
+        return "logic_puzzles"
+    if (
+        "?" not in text
+        and not has_fence
+        and "`" not in text
+        and len(text) < 350
+        and entity_hits == 0
+        and not _PF_INSTRUCT.search(low)
+        and not _PF_SHAPE.search(low)
+        and not re.search(r"passage|text below|article|paragraph|following", low)
+        and not re.search(r"\d", text)
+    ):
+        return "sentiment_analysis"
+    return None
+
+
 def canonical_category(category: str) -> str:
     mapped = LEGACY_CATEGORY_MAP.get(category, category)
     return mapped if mapped in CATEGORIES else "actual_qa"
@@ -276,6 +335,18 @@ def _self_check() -> None:
     assert parse_remote_classifications(
         '{"t1":"logic_puzzles","t2":"named_entity_recognition', {"t1", "t2"}
     ) == {"t1": "logic_puzzles"}
+    # Prefilter: fires only on unambiguous shapes, defers everything else.
+    assert prefilter_category("Fix the bug:\n```python\ndef f(): return 1\n```") == "code_debugging"
+    assert prefilter_category("Summarize this paragraph in one sentence: 'Bees pollinate.'") \
+        == "summarization"
+    assert prefilter_category("Write a Python function `f(x)` that doubles x.") == "code_generation"
+    assert prefilter_category(
+        "Identify people and locations: 'Elon Musk visited Toronto.'"
+    ) == "named_entity_recognition"
+    assert prefilter_category("The pasta arrived cold and the staff ignored us.") \
+        == "sentiment_analysis"
+    assert prefilter_category("Who wrote Hamlet?") is None
+    assert prefilter_category("What is 25 x 4?") is None
     print("PASS classify self-check")
 
 
