@@ -142,6 +142,19 @@ _PF_INSTRUCT = re.compile(
     r"give|tell|calculat|solv|explain|translat|convert|pull out|pick out|"
     r"note each|what|which|who|how)\w*"
 )
+# code_generation needs an imperative build verb: language+artifact nouns alone also
+# appear in factual questions and reviews about code ("What does a Python function
+# return...", "the instructor made every function feel simple").
+_PF_WRITE = re.compile(r"\b(writ|implement|creat|build|design|develop|generat|construct|cod)\w*")
+# NER needs an extraction verb: entity nouns plus "following" also open reviews and
+# logic puzzles ("Four people ... given the following clues").
+_PF_EXTRACT = re.compile(r"\b(extract|identif|list|find|name|label|tag|pull|pick|detect|recogni)\w*")
+# A summarize imperative, not the bare noun: "summary" also names artifacts and concepts
+# ("Debug why my summary function...", "What is an executive summary?").
+_PF_SUMMAR_VERB = re.compile(
+    r"\bsummari[sz]e\b|\btl;?dr\b|"
+    r"\b(?:write|give|provide|create|prepare|draft|make|produce)\b[^.?!\n]{0,60}\bsummary\b"
+)
 
 
 def prefilter_category(prompt: str) -> str | None:
@@ -151,22 +164,38 @@ def prefilter_category(prompt: str) -> str | None:
     has_fence = "```" in text
     entity_hits = len(_PF_ENTITY.findall(low))
     broken = _PF_BROKEN.search(low)
+    code_ctx = (
+        has_fence
+        or bool(_PF_LANG.search(low) and _PF_ARTIFACT.search(low))
+        or bool(_SUMMARY_CODE_ARTIFACT.search(text))
+    )
 
     if has_fence and broken:
         return "code_debugging"
-    if re.search(r"\bsummar", low) or (_PF_SHAPE.search(low) and len(text) > 200):
+    if not code_ctx and (
+        _PF_SUMMAR_VERB.search(low)
+        or (not broken and _PF_SHAPE.search(low) and len(text) > 200)
+    ):
         return "summarization"
-    if not has_fence and not broken and _PF_LANG.search(low) and _PF_ARTIFACT.search(low):
+    if (
+        not has_fence
+        and not broken
+        and _PF_LANG.search(low)
+        and _PF_ARTIFACT.search(low)
+        and _PF_WRITE.search(low)
+    ):
         return "code_generation"
     # A summary-shape cue anywhere means this is not an extraction task; defer rather
     # than let entity nouns in the body steal a summarization prompt (v4_summary_008).
     if (
         entity_hits >= 2
         and re.search(r"text|passage|below|following|mentioned|sentence|:", low)
+        and _PF_EXTRACT.search(low)
         and not _PF_SHAPE.search(low)
+        and not re.search(r"\b(clues?|puzzle|riddle|sits?|seated|row)\b", low)
     ):
         return "named_entity_recognition"
-    if re.search(r"does it follow|can you conclude|answer yes or no", low):
+    if re.search(r"does it follow|can you conclude", low):
         return "logic_puzzles"
     if (
         "?" not in text
@@ -354,6 +383,18 @@ def _self_check() -> None:
         == "sentiment_analysis"
     assert prefilter_category("Who wrote Hamlet?") is None
     assert prefilter_category("What is 25 x 4?") is None
+    # Hidden-set hardening: summary/code/entity nouns in the wrong task shape must defer
+    # or route by the imperative, never by body nouns (see eval/devset/stress.json).
+    assert prefilter_category("Debug why my summary function returns None when the list is empty.") is None
+    assert prefilter_category("What is an executive summary?") is None
+    assert prefilter_category("What does a Python function return if it has no return statement?") is None
+    assert prefilter_category("Answer yes or no: is the Great Wall visible from the Moon?") is None
+    assert prefilter_category(
+        "Write a Python function that returns a summary dict of word counts for a given string."
+    ) == "code_generation"
+    assert prefilter_category(
+        "The Python workshop was fantastic and the instructor made every function and class feel simple."
+    ) == "sentiment_analysis"
     print("PASS classify self-check")
 
 

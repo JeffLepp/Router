@@ -387,6 +387,9 @@ def build_contracts(max_tokens: dict[str, int] | None = None) -> dict[str, Contr
             'One label: positive, negative, neutral, or mixed.\n'
             'Ironic praise for a bad outcome (a long wait, hard effort) is negative, never mixed.\n'
             'A statement with no opinion is neutral.\n'
+            'If the writer gives a clear final overall judgment or decision (for example, '
+            'returning despite an earlier bad experience), use that overall sentiment rather '
+            'than calling the earlier and later parts separate aspects.\n'
             'Only if two real aspects contrast, return compact JSON: '
             '{"sentiment":"mixed","aspects":{"<noun>":"positive|negative"}} â€” one lowercase noun '
             'per aspect (performance, battery, design, camera, venue).',

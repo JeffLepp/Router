@@ -5,12 +5,21 @@ import re
 from decimal import Decimal, DivisionByZero, InvalidOperation
 from fractions import Fraction
 
-from agent.solvers.common import UNANSWERABLE, format_decimal, normalize, parse_number
+from agent.solvers.common import NUMBER_WORDS, UNANSWERABLE, format_decimal, normalize, parse_number
 from agent.verify.math_v import safe_eval
 
 
 _SAFE_EXPR_RE = re.compile(r"^[\d\s().+\-*/^]+$")
 _NUM = r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?"
+
+# A trailing verbal operation ("15% of 200, plus 30") means the matched template is only a
+# sub-expression of the real question; answering it confidently is a hidden-set miss.
+_TRAILING_OP = re.compile(r"\b(plus|minus|times|divided by|added|less)\b", re.I)
+
+
+def _leftover_digits(text: str, used: tuple[str, ...]) -> bool:
+    """True when the prompt holds numbers the matched template did not consume."""
+    return bool(set(re.findall(_NUM, text)) - {u for u in used if u})
 
 
 def solve(prompt: str) -> str | None:
@@ -54,9 +63,10 @@ def solve_strict(prompt: str) -> str | None:
 
 
 def _is_division_by_zero(lower: str) -> bool:
+    # "/ 0.5" is a legitimate divisor, so a digit or decimal point after the 0 must not fire.
     return bool(
         re.search(r"\b(divided by|divide by|division by)\s+zero\b", lower)
-        or re.search(r"[/]\s*0(?:\D|$)", lower)
+        or re.search(r"[/]\s*0(?:[^.\d]|$)", lower)
     )
 
 
@@ -82,7 +92,8 @@ def _triangle_area(text: str) -> str | None:
 def _quadratic_roots(text: str) -> str | None:
     compact = re.sub(r"\s+", "", normalize(text).lower())
     compact = compact.replace("**2", "^2")
-    match = re.search(r"x\^2([+-]\d*)x([+-]\d+)=0", compact)
+    # A digit before x^2 is a leading coefficient this monic template does not model.
+    match = re.search(r"(?<![\dx.])x\^2([+-]\d*)x([+-]\d+)=0", compact)
     if not match:
         return None
     b_raw, c_raw = match.groups()
@@ -117,6 +128,9 @@ def _probability_two_draw(text: str) -> str | None:
     lower = text.lower()
     if "probability" not in lower or not _TWO_DRAW_CUE.search(lower):
         return None
+    # Compound events ("both red or both blue", "same color") need more than one branch.
+    if re.search(r"\bor\b|same colou?r|different", lower):
+        return None
     color_counts = {
         color: int(count.replace(",", ""))
         for count, color in re.findall(rf"({_NUM})\s+(red|blue|green|yellow|black|white)", lower)
@@ -141,6 +155,8 @@ def _percent_of(text: str) -> str | None:
     match = re.search(rf"(?:what is\s+)?({_NUM})\s*(?:%|percent)\s+of\s+({_NUM})", lower)
     if not match:
         return None
+    if _leftover_digits(lower, match.groups()) or _TRAILING_OP.search(lower):
+        return None
     pct, base = (parse_number(part) for part in match.groups())
     return format_decimal(base * pct / Decimal(100))
 
@@ -150,6 +166,8 @@ _POWER_WORDS = {"second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6}
 
 def _power_phrase(text: str) -> str | None:
     lower = text.lower()
+    if _TRAILING_OP.search(lower):
+        return None
     match = re.search(rf"({_NUM})\s+raised to the\s+(\w+)\s+power", lower)
     if match:
         base = parse_number(match.group(1))
@@ -188,7 +206,12 @@ def _op_chain(text: str) -> str | None:
     if not start:
         return None
     value = parse_number(start.group(1))
-    steps = list(_OP_STEP.finditer(lower[start.end():]))
+    tail = lower[start.end():]
+    # A spelled-out number ("subtract five") is an operand _OP_STEP cannot consume; the
+    # digit-only leftover guard below would miss it, so defer the whole chain.
+    if re.search(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", tail):
+        return None
+    steps = list(_OP_STEP.finditer(tail))
     if not steps:
         return None
     used = {start.group(1)}
@@ -216,6 +239,8 @@ def _square_of(text: str) -> str | None:
     match = re.search(rf"square of\s+({_NUM})", text, flags=re.I)
     if not match:
         return None
+    if _leftover_digits(text, match.groups()) or _TRAILING_OP.search(text):
+        return None
     value = parse_number(match.group(1))
     return format_decimal(value * value)
 
@@ -235,6 +260,13 @@ def _give_away(text: str) -> str | None:
 def _average(text: str) -> str | None:
     # only bare number lists ("average of 2, 4, and 9"); "average speed/score of ..." prose
     # needs interpretation and must go remote
+    if re.search(
+        r"\b(remov\w*|exclud\w*|except|without|ignor\w*|apart from|largest|smallest|"
+        r"highest|lowest|weighted)\b",
+        text,
+        flags=re.I,
+    ):
+        return None
     match = re.search(
         rf"average of\s+((?:{_NUM})(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)(?:{_NUM}))+)",
         text,

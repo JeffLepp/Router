@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!requirements.txt
+!agent/
+!agent/**
+!docker/
+!docker/entrypoint.sh

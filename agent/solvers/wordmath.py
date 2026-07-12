@@ -54,6 +54,17 @@ def _rate_times_time(text: str) -> str | None:
     # a third number means a multi-leg problem this template does not model
     if _digits(text) - set(match.groups()):
         return None
+    lower = text.lower()
+    # the template computes distance; a speed question shares the same surface form
+    if re.search(r"\baverage speed\b|\bhow fast\b|\bwhat speed\b", lower):
+        return None
+    # the answer unit is the rate's distance unit; a question asking for another unit
+    # ("how many meters/miles") needs a conversion this template does not do
+    asked = re.search(r"how many (\w+)", lower)
+    km_rate = bool(re.search(r"km/h|kph|kilometers per hour", match.group(0), re.I))
+    allowed = {"kilometers", "km"} if km_rate else {"miles"}
+    if asked and asked.group(1) not in allowed:
+        return None
     rate, duration = (parse_number(part) for part in match.groups())
     return format_decimal(rate * duration)
 
@@ -71,6 +82,11 @@ def _speed_from_distance(text: str) -> str | None:
         return None
     if _digits(lower) - set(match.groups()):
         return None
+    # the template answers in distance-unit-per-hour; other asked units need conversion
+    if re.search(r"m/s|meters per second", lower):
+        return None
+    if "mile" in lower and re.search(r"\bkm\b|kilometer", lower):
+        return None
     distance, duration = (parse_number(part) for part in match.groups())
     if duration == 0:
         return None
@@ -87,6 +103,10 @@ def _item_total(text: str) -> str | None:
     )
     if not parts:
         return None
+    # an unconsumed number (a bill paid with, a coupon, a fee) changes the true answer
+    used = {value for pair in parts for value in pair if re.fullmatch(_NUM, value)}
+    if _digits(text) - used:
+        return None
     total = Decimal(0)
     for count_raw, price_raw in parts:
         total += parse_number(count_raw) * parse_number(price_raw)
@@ -97,9 +117,14 @@ def _rectangle_area(text: str) -> str | None:
     lower = text.lower()
     if "rectangle" not in lower or "area" not in lower:
         return None
+    # comparisons introduce a second shape whose area is the real question
+    if re.search(r"\b(second|another|other|combined|twice|double|halved?|half)\b", lower):
+        return None
     length = re.search(rf"length\s+of\s+({_NUM})", lower)
     width = re.search(rf"width\s+of\s+({_NUM})", lower)
     if not length or not width:
+        return None
+    if _digits(lower) - {length.group(1), width.group(1)}:
         return None
     return format_decimal(parse_number(length.group(1)) * parse_number(width.group(1)))
 
@@ -126,6 +151,10 @@ def _dimensions_area(text: str) -> str | None:
 def _had_gave_found(text: str) -> str | None:
     lower = text.lower()
     if "how many" not in lower:
+        return None
+    # the template computes the subject's remaining count; the question must ask for it,
+    # not for a transfer amount ("how many did her brother receive?")
+    if not re.search(r"how many[^?]*\b(now|left|remain\w*|altogether|in all|in total|have)\b", lower):
         return None
     match = re.search(
         rf"(?:had|started with)\s+({_NUM})\s+\w+.*?"
@@ -176,6 +205,10 @@ def _reverse_percent(text: str) -> str | None:
     lower = text.lower()
     if not _ORIGINAL_CUE.search(lower):
         return None
+    # a per-item or combined-total framing means the stated price is not the single
+    # discounted price this template inverts
+    if re.search(r"\b(each|apiece|together|combined|per\b)\b", lower):
+        return None
     # "$X after a Y% discount/increase" -> price then pct (the common phrasing)
     match = re.search(
         rf"\$?({_NUM})\s+after\s+(?:a\s+)?({_NUM})\s*(?:%|percent)\s+(discount|increase)",
@@ -205,11 +238,15 @@ def _discount_price(text: str) -> str | None:
     lower = text.lower()
     if _ORIGINAL_CUE.search(lower):
         return None  # asks for the pre-discount price -> _reverse_percent territory, never compute forward
+    if re.search(r"\b(tax|fee|shipping|surcharge)\w*\b", lower):
+        return None  # a post-discount add-on changes the final amount
     match = re.search(
         rf"\$?({_NUM}).*?({_NUM})\s*(?:%|percent)\s+discount",
         lower,
     )
     if not match:
+        return None
+    if _digits(lower) - set(match.groups()):
         return None
     base, pct = (parse_number(part) for part in match.groups())
     return format_decimal(base * (Decimal(1) - pct / Decimal(100)))
@@ -217,6 +254,9 @@ def _discount_price(text: str) -> str | None:
 
 def _profit_loss(text: str) -> str | None:
     lower = text.lower()
+    # the template computes the absolute difference, not a percentage or margin
+    if re.search(r"%|percent|margin", lower):
+        return None
     match = re.search(
         rf"bought.*?\$?({_NUM}).*?sold.*?\$?({_NUM}).*?(profit|loss)",
         lower,

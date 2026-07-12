@@ -17,6 +17,7 @@ DATASETS = [
     "eval/devset/variants2.json",
     "eval/devset/variants3.json",
     "eval/devset/variants4.json",
+    "eval/devset/stress.json",
 ]
 
 
