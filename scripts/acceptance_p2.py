@@ -57,6 +57,7 @@ def test_gate_precision_recall() -> None:
         recall = answered[category] / totals[category]
         print(f"GATE_RECALL {category} {answered[category]}/{totals[category]} {recall:.1%}")
     _assert_holdout_precision()
+    _assert_strict_stress_precision()
 
 
 def test_phase0a_classifier_routes() -> None:
@@ -125,6 +126,32 @@ def _assert_holdout_precision() -> None:
             wrong.append((task["id"], task["category"], answer))
     assert not wrong, "wrong proven answers on holdout: " + repr(wrong[:5])
     print(f"GATE_PRECISION_HOLDOUT 100.00% wrong=0 n_holdout={len(holdout)}")
+
+
+def _assert_strict_stress_precision() -> None:
+    """The submitted strict profile must never accept a wrong stress answer."""
+    import json
+    from pathlib import Path
+
+    from eval.score import score_task
+
+    tasks = json.loads(
+        Path("eval/devset/stress.json").read_text(encoding="utf-8")
+    )
+    accepted = []
+    wrong = []
+    for task in tasks:
+        answer = gate_solve(task["category"], task["prompt"], profile="strict")
+        if answer is None:
+            continue
+        accepted.append(task["id"])
+        if not score_task(task, answer):
+            wrong.append((task["id"], task["category"], answer))
+    assert not wrong, "wrong strict answers on stress: " + repr(wrong[:5])
+    print(
+        f"GATE_PRECISION_STRICT_STRESS 100.00% wrong=0 "
+        f"accepted={len(accepted)} n_stress={len(tasks)}"
+    )
 
 
 def evaluate_item(item: dict[str, Any], answer: str) -> bool:
