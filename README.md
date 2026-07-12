@@ -6,19 +6,19 @@ validated model exposed through the judging proxy.
 
 ## Current phase
 
-The accuracy gate is passed. The current official result is **89.5%** (about
-17/19 tasks), placing the project **67th**. Development now focuses on reducing
-Fireworks tokens while preserving accuracy above 80%.
+The accuracy gate is passed. The current official result is **94.7%** (about
+18/19 tasks) using **12,012 Fireworks tokens**. Development now focuses on
+reducing tokens while preserving accuracy above 80%; the previous reported rank
+was 67th and the Phase 1 result did not include a new rank.
 
-Because a 19-task score moves in 5.26-point steps, the current result can absorb
-only one additional miss: 16/19 is 84.2%, while 15/19 is 78.9%. Token changes
-therefore ship one at a time behind paired accuracy gates.
+Because a 19-task score moves in 5.26-point steps, 16/19 is 84.2% while 15/19
+is 78.9%. Future token changes ship one at a time behind paired accuracy gates.
 
 Frozen accuracy image:
 
 ```text
-jeffklin303/amd-router:accuracy-first-20260711
-sha256:fafd46eef741e6ef1660c05084a1893807572c50b650b85399266d04e82bc0bf
+jeffklin303/amd-router:phase1-direct-compression-20260711
+sha256:03dd918dd42bad832842456200c3ddd6678470e242d5b6c469aaf1f59def87fa
 ```
 
 See [SUBMISSION_READY.md](SUBMISSION_READY.md) for the copy/paste teammate
@@ -57,15 +57,15 @@ IDs, and every remote request goes through the supplied base URL.
 
 | Evidence | Result |
 |---|---:|
-| Official submission | **89.5%**, rank 67 |
+| Official Phase 1 submission | **94.7%**, **12,012 tokens** |
 | Remote classifier audit | **160/160** across variants2 + variants3 |
-| variants2 full live release gate | **96.25% judged**, 42,025 tokens, 0 errors |
-| variants3 full live release gate | **96.25% judged**, 41,952 tokens, 0 errors |
-| Final affected-category gate | NER 10/10, summary 9/10, 0 errors |
+| Phase 1 variants2 full live gate | **97.50% judged**, 33,959 tokens, 0 errors |
+| Phase 1 variants3 full live gate | **95.00% judged**, 35,169 tokens, 0 errors |
+| Final affected-category gate | variants3 NER sentinel 10/10, 0 errors |
 | Docker acceptance | public linux/amd64, 0.08 GB compressed, both smokes pass |
 
 The local variant scores are regression gates, not claims about the hidden set.
-The official 89.5% result remains the decision anchor.
+The official 94.7% / 12,012-token result remains the decision anchor.
 
 The Phase 1 direct-output compression candidate combines two related changes:
 QA uses no hidden reasoning, NER defers ambiguity/event prompts to high effort,
@@ -74,10 +74,11 @@ fallback. On the paired 160-task release gate it preserved 154/160 judged passes
 reduced tokens from 83,977 to 69,128 (-17.7%), reduced requests from 169 to 123,
 and produced zero remote errors. A post-fix NER sentinel gate passed 10/10.
 
-The calibrated official forecast is about 11,524 tokens from the approximate
-14,000-token baseline. Approaching 1,500 tokens will still require selective
-local answering; classifier replacement alone targets only the 17.1% classifier
-share measured before Phase 1.
+The Phase 1 forecast was 11,524 tokens; the official result was 12,012, only
+488 tokens (4.2%) higher. Use this calibration record for the next candidate.
+Approaching 1,500 tokens will still require selective local answering;
+classifier replacement alone targets only the 17.1% classifier share measured
+before Phase 1.
 
 ## Input/output contract
 

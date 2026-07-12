@@ -7,16 +7,17 @@ official accuracy gate.
 
 | Metric | Current value |
 |---|---:|
-| Official accuracy | **89.5%** (approximately 17/19) |
-| Official placement | **67th** |
+| Official accuracy | **94.7%** (approximately 18/19) |
+| Official tokens | **12,012** |
+| Official placement | previous reported rank 67th; Phase 1 rank not reported |
 | Required accuracy | above 80% |
-| One additional miss | 16/19 = 84.2% |
-| Two additional misses | 15/19 = 78.9% - below target |
-| Frozen image | `jeffklin303/amd-router:accuracy-first-20260711` |
-| Frozen digest | `sha256:fafd46eef741e6ef1660c05084a1893807572c50b650b85399266d04e82bc0bf` |
+| Two additional misses | 16/19 = 84.2% |
+| Three additional misses | 15/19 = 78.9% - below target |
+| Frozen image | `jeffklin303/amd-router:phase1-direct-compression-20260711` |
+| Frozen digest | `sha256:03dd918dd42bad832842456200c3ddd6678470e242d5b6c469aaf1f59def87fa` |
 
-The project has one task of accuracy budget. Token efficiency is now the goal,
-but avoiding a second additional miss is the release constraint.
+The project has a two-task floor margin. Token efficiency is now the goal, but
+paired local regressions still require an explanation before promotion.
 
 ## Runtime architecture
 
@@ -80,9 +81,9 @@ official roster to move sentiment and NER onto untested Gemma primaries.
 
 ### Official
 
-The latest saved submission scored **89.5%** and reached **67th place**. The
-reported result did not include its token count, so the official token baseline
-is currently unknown.
+The latest saved submission scored **94.7%** (about 18/19) using **12,012
+tokens**. It is the Phase 1 direct-output compression image. The previous rank
+was 67th; no updated rank was reported.
 
 ### Local live release gates
 
@@ -146,7 +147,8 @@ This phase combines one coherent direct-output policy:
 Paired release result: 154/160 judged passes for both control and candidate,
 83,977 -> 69,128 tokens (-17.7%), 169 -> 123 requests, zero remote errors.
 The final empty-entity fix then passed the affected variants3 NER set 10/10.
-The approximate official-token forecast is 11,524.
+The official result was 94.7% and 12,012 tokens, versus a 11,524-token forecast
+(488 tokens, or 4.2%, above forecast).
 
 ### Phase 2 - selective local answering
 

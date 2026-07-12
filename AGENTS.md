@@ -11,14 +11,16 @@ Fireworks tokens.
 
 Current official state, reported 2026-07-11:
 
-- Accuracy: **89.5%** (approximately 17/19 tasks).
-- Placement: **67th**.
+- Accuracy: **94.7%** (approximately 18/19 tasks).
+- Fireworks tokens: **12,012**.
+- Placement: last reported as 67th; the Phase 1 result did not include a new rank.
 - Phase: token optimization with an accuracy floor above 80%.
-- Frozen image: `jeffklin303/amd-router:accuracy-first-20260711`.
-- Digest: `sha256:fafd46eef741e6ef1660c05084a1893807572c50b650b85399266d04e82bc0bf`.
+- Frozen image: `jeffklin303/amd-router:phase1-direct-compression-20260711`.
+- Digest: `sha256:03dd918dd42bad832842456200c3ddd6678470e242d5b6c469aaf1f59def87fa`.
 
-On 19 tasks, one extra miss gives 84.2% and two extra misses give 78.9%.
-Treat the accuracy budget as one task, not as a comfortable ten-point margin.
+On 19 tasks, one extra miss gives 89.5%, two extra misses give 84.2%, and
+three extra misses give 78.9%. The score now has a two-task floor margin, but
+do not spend it casually: preserve paired local answers unless a loss is explained.
 
 ## Current runtime
 
@@ -29,8 +31,11 @@ Treat the accuracy budget as one task, not as a comfortable ten-point margin.
    - Minimax primary: factual QA, math, sentiment.
    - Kimi primary: summarization, NER, debugging, logic, code generation.
    - Other allowed families are transport fallbacks, not unvalidated primaries.
-5. Apply the category contract and conservative output normalization.
-6. Atomically write `/output/results.json`.
+5. Phase 1 compresses direct-output work: QA uses no reasoning; direct NER uses
+   no reasoning but event/ambiguity prompts keep high reasoning; QA, sentiment,
+   and NER batch by category with per-row validation and individual fallback.
+6. Apply the category contract and conservative output normalization.
+7. Atomically write `/output/results.json`.
 
 The classifier scored 160/160 on variants2 + variants3. Do not spend the
 accuracy budget replacing it unless the candidate reproduces that result.
@@ -73,11 +78,11 @@ Core runtime:
 - `agent/gate.py`: conservative zero-token proof dispatch.
 - `agent/contracts.py`: category prompts, caps, and answer assembly.
 - `agent/remote.py`: allowed-model routing, retries, and token ledger.
-- `agent/batcher.py`: experimental same-category answer batching; default off.
+- `agent/batcher.py`: Phase 1 same-category batching for QA, sentiment, and NER.
 - `agent/local_llm.py`, `agent/local_gate.py`: optional local candidate path; default off.
 - `agent/solvers/`: deterministic proof solvers.
 - `agent/verify/`: math, logic, format, and code verification.
-- `agent/config.yaml`: frozen accuracy-first defaults.
+- `agent/config.yaml`: frozen Phase 1 defaults.
 - `agent/config.efficiency.yaml`: experimental token-saving profile; never promote wholesale.
 
 Evaluation and release:
@@ -103,17 +108,15 @@ Documentation:
 
 Work one lever at a time, in this order:
 
-1. Measure token contribution by stage/category; do not optimize estimates.
+1. Phase 0 attribution and Phase 1 direct-output compression are complete.
 2. Replace the remote batch classifier only with a local classifier that remains
    160/160 on variants2 + variants3 and remotely defers low confidence.
-3. Add per-category reasoning effort; try lower effort on QA, sentiment, NER,
-   and summaries while retaining stronger reasoning for math, logic, and code.
-4. Test answer batching only for one low-coupling category at a time.
-5. Reduce caps only from observed completion percentiles and truncation checks.
-6. Expand deterministic/local answers only at 100% OOD precision.
+3. Test the next isolated answer-level lever only after the classifier decision.
+4. Reduce caps only from observed completion percentiles and truncation checks.
+5. Expand deterministic/local answers only at 100% OOD precision.
 
-Do not combine these in one experiment. A combined win cannot identify which
-lever caused an accuracy loss on the hidden set.
+Do not combine new levers in one experiment. Phase 1 was a deliberately coupled
+direct-output compression policy; future candidates must isolate one variable.
 
 ## Promotion gate
 
