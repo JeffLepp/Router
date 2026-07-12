@@ -61,6 +61,29 @@ CODE_TESTS: dict[str, list[str]] = {
         "assert most_common([1, 2, 2, 1]) == 1",
         "assert most_common([]) is None",
     ],
+    # Phase 3 gap-focused adversarial set (eval/devset/variants4.json).
+    "v4_debug_001": ["assert up_to(5) == [1, 2, 3, 4, 5]", "assert up_to(1) == [1]"],
+    "v4_debug_002": ["assert is_positive(5) == True", "assert is_positive(0) == False", "assert is_positive(-3) == False"],
+    "v4_debug_003": ["assert add_item('a') == ['a']", "assert add_item('b') == ['b']"],
+    "v4_debug_005": ["assert avg([2, 4, 6]) == 4", "assert avg([]) == 0"],
+    "v4_debug_006": ["assert abs_diff(3, 8) == 5", "assert abs_diff(8, 3) == 5", "assert abs_diff(-2, -7) == 5"],
+    "v4_gen_001": [
+        "assert running_max([3, 1, 4, 1, 5, 9, 2]) == [3, 3, 4, 4, 5, 9, 9]",
+        "assert running_max([]) == []",
+        "assert running_max([-5, -2, -9]) == [-5, -2, -2]",
+    ],
+    "v4_gen_004": ["assert count_palindrome_words('noon is a racecar word') == 3", "assert count_palindrome_words('hello world') == 0"],
+    "v4_gen_006": [
+        "assert factorial(5) == 120",
+        "assert factorial(0) == 1",
+        "try:\n    factorial(-1)\n    raise AssertionError('missing ValueError')\nexcept ValueError:\n    pass",
+    ],
+    "v4_gen_007": [
+        "assert interleave([1, 2, 3], [4, 5]) == [1, 4, 2, 5, 3]",
+        "assert interleave([], [1, 2]) == [1, 2]",
+        "assert interleave([1], []) == [1]",
+    ],
+    "v4_gen_009": ["assert safe_index([1, 2, 3], 1) == 2", "assert safe_index([1, 2, 3], 5) is None", "assert safe_index([], 0) is None"],
 }
 
 # JS tasks: real node execution (Node is on the scoring host). assert.* throws -> nonzero exit.
@@ -86,6 +109,16 @@ CODE_TESTS_JS: dict[str, list[str]] = {
         "assert.deepStrictEqual(range(3), [0, 1, 2]);",
         "assert.deepStrictEqual(range(0), []);",
     ],
+    "v4_debug_004": ["assert.strictEqual(sumFirstN(5), 15);", "assert.strictEqual(sumFirstN(1), 1);"],
+    "v4_debug_007": [
+        "assert.strictEqual(inRange(5), true);",
+        "assert.strictEqual(inRange(15), false);",
+        "assert.strictEqual(inRange(-3), false);",
+    ],
+    "v4_gen_002": [
+        "assert.strictEqual(countUnique(['Cat', 'cat', 'Dog']), 2);",
+        "assert.strictEqual(countUnique([]), 0);",
+    ],
 }
 
 # Java/C: no toolchain on the scoring host, so they can't run. In judged mode the eval-only
@@ -96,6 +129,9 @@ JUDGE_CODE_IDS = {
     # Phase 2 variant-set Java/C/C++ tasks (no toolchain on the scoring host).
     "v2_debug_006", "v2_debug_010", "v2_gen_009", "v2_gen_010",
     "v3_debug_006", "v3_debug_010", "v3_gen_009", "v3_gen_010",
+    # Phase 3 gap-focused set: SQL (phrasing varies) plus Java/C (no toolchain).
+    "v4_debug_008", "v4_debug_009", "v4_debug_010",
+    "v4_gen_003", "v4_gen_005", "v4_gen_008", "v4_gen_010",
 }
 
 _JUDGE_METHODS = {"semantic_similarity", "contains_essential_points"}
@@ -296,6 +332,7 @@ _GOLD_BACK_FILES = (
     "dataset.json",
     "eval/devset/variants2.json",
     "eval/devset/variants3.json",
+    "eval/devset/variants4.json",
 )
 
 

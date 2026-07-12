@@ -1,0 +1,1074 @@
+[
+  {
+    "id": "v4_qa_001",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which continent is home to the country that has the largest population in the world?",
+    "expected_answer": "Asia"
+  },
+  {
+    "id": "v4_qa_002",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which ocean lies between the continent where the Great Barrier Reef is located and the continent of Africa?",
+    "expected_answer": "Indian Ocean"
+  },
+  {
+    "id": "v4_qa_003",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What currency is used in the country where the Eiffel Tower is located?",
+    "expected_answer": "Euro"
+  },
+  {
+    "id": "v4_qa_004",
+    "category": "actual_qa",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What was the exact number of leaves on the oak tree outside the Boston Public Library on July 4, 1850?",
+    "expected_answer": null
+  },
+  {
+    "id": "v4_qa_005",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which is older, the University of Bologna or the University of Paris?",
+    "expected_answer": "University of Bologna"
+  },
+  {
+    "id": "v4_qa_006",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which of the following is NOT a noble gas: neon, argon, nitrogen, krypton?",
+    "expected_answer": "Nitrogen"
+  },
+  {
+    "id": "v4_qa_007",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Of the 7 wonders of the ancient world listed in some textbooks, only one still stands today intact. Name it.",
+    "expected_answer": "The Great Pyramid of Giza"
+  },
+  {
+    "id": "v4_qa_008",
+    "category": "actual_qa",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "In the early 1800s, postal systems across Europe were fragmented, with each kingdom charging its own rates and issuing its own stamps. Merchants often paid exorbitant fees to send letters across borders, and delivery times were unpredictable, sometimes taking weeks for a message to cross a single country. Reform efforts began gathering momentum in the 1830s as postal costs became a matter of public debate in parliaments. It was Rowland Hill, a British teacher and social reformer, who in 1837 published a pamphlet proposing a flat, prepaid postage rate regardless of distance, along with adhesive stamps to prove payment had been made. His ideas were initially dismissed by the postal establishment as impractical, but public pressure mounted, and in 1840 the British government adopted his plan, introducing the Penny Black, the world's first adhesive postage stamp. The reform was wildly successful: costs fell and mail volumes rose dramatically within a few years, and other countries began copying the British model soon after.\n\nWho proposed the flat, prepaid postage rate that led to the Penny Black?",
+    "expected_answer": "Rowland Hill"
+  },
+  {
+    "id": "v4_qa_009",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Between Mount Kilimanjaro and Mount Everest, which one is NOT located in Asia?",
+    "expected_answer": "Mount Kilimanjaro"
+  },
+  {
+    "id": "v4_qa_010",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What was the final score of the 2031 World Cup final?",
+    "expected_answer": null
+  },
+  {
+    "id": "v4_math_001",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A bakery baked 138 muffins and already sold 45 of them individually. They want to pack the rest into boxes of 6. How many full boxes of 6 can they make from the rest?",
+    "expected_answer": "15"
+  },
+  {
+    "id": "v4_math_002",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A jacket originally priced at $150 is discounted by 20%, and then a member's coupon takes off an additional 10% of the new price. What is the final price?",
+    "expected_answer": "108"
+  },
+  {
+    "id": "v4_math_003",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_tolerance",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A recipe requires 750 grams of flour, but your kitchen scale only measures in ounces. If 1 ounce equals about 28.35 grams, how many ounces of flour do you need, rounded to the nearest whole number?",
+    "expected_answer": "26"
+  },
+  {
+    "id": "v4_math_004",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Two trains leave stations 420 km apart at the same time, moving toward each other. One travels at 60 km/h and the other at 80 km/h. After how many hours will they meet?",
+    "expected_answer": "3"
+  },
+  {
+    "id": "v4_math_005",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Compute: 8 + 6 × (3² − 4) ÷ 2.",
+    "expected_answer": "23"
+  },
+  {
+    "id": "v4_math_006",
+    "category": "math_reasoning",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A librarian has 240 books to shelve. She works with 2 assistants, and each of the 3 people (including her) can shelve 15 books per hour. If the library closes in 4 hours and it opened at 9 that morning with 50 visitors already inside, how many books will remain unshelved when it closes, assuming they work the whole time?",
+    "expected_answer": "60"
+  },
+  {
+    "id": "v4_math_007",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unordered_numeric_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Find all real solutions x to the equation x² − 7x + 12 = 0.",
+    "expected_answer": "[3, 4]"
+  },
+  {
+    "id": "v4_math_008",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_tolerance",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A drawer has 4 black socks and 6 white socks. If you pick two socks at random without replacement, what is the probability both are white?",
+    "expected_answer": "1/3"
+  },
+  {
+    "id": "v4_math_009",
+    "category": "math_reasoning",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What is the value of 7 divided by 0, expressed as a real number?",
+    "expected_answer": null
+  },
+  {
+    "id": "v4_math_010",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A triangle has side lengths 4 cm, 5 cm, and 20 cm. What is its area?",
+    "expected_answer": null
+  },
+  {
+    "id": "v4_sent_001",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Oh fantastic, another software update that deleted all my settings again. Just what I always wanted.",
+    "expected_answer": {
+      "sentiment": "negative"
+    }
+  },
+  {
+    "id": "v4_sent_002",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This is not a bad phone at all — I've had zero complaints after three months.",
+    "expected_answer": {
+      "sentiment": "positive"
+    }
+  },
+  {
+    "id": "v4_sent_003",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I guess it works, if 'working' means breaking down every other week.",
+    "expected_answer": {
+      "sentiment": "negative"
+    }
+  },
+  {
+    "id": "v4_sent_004",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "aspect_based_classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The camera on this phone is excellent and the screen looks great, but the battery drains fast and the price is way too high.",
+    "expected_answer": {
+      "sentiment": "mixed",
+      "aspects": {
+        "camera": "positive",
+        "screen": "positive",
+        "battery": "negative",
+        "price": "negative"
+      }
+    }
+  },
+  {
+    "id": "v4_sent_005",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I was ready to hate this restaurant after waiting 40 minutes for a table with no apology, but the food that finally arrived was so incredible that I've already made a reservation to come back next week.",
+    "expected_answer": {
+      "sentiment": "positive"
+    }
+  },
+  {
+    "id": "v4_sent_006",
+    "category": "sentiment_analysis",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The building has a massive 40-story glass facade and covers nearly two full city blocks.",
+    "expected_answer": {
+      "sentiment": "neutral"
+    }
+  },
+  {
+    "id": "v4_sent_007",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Wow, thanks for cancelling my order the day before my wedding. Really appreciate the excellent timing.",
+    "expected_answer": {
+      "sentiment": "negative"
+    }
+  },
+  {
+    "id": "v4_sent_008",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I'd give the entrees a solid 9 out of 10, but the 45 minute wait for a table and the 3 mistakes in our order bring the overall experience down to maybe a 5.",
+    "expected_answer": {
+      "sentiment": "mixed"
+    }
+  },
+  {
+    "id": "v4_sent_009",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Nothing about this laptop screams 'cheap' — it's solid, fast, and the display is stunning.",
+    "expected_answer": {
+      "sentiment": "positive"
+    }
+  },
+  {
+    "id": "v4_sent_010",
+    "category": "sentiment_analysis",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The soup was, let's say, not the highlight of my evening.",
+    "expected_answer": {
+      "sentiment": "negative"
+    }
+  },
+  {
+    "id": "v4_summary_001",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Summarize this paragraph in one sentence:\n\n'For centuries, books in Europe were copied entirely by hand, a slow process that meant only wealthy institutions like monasteries and universities could afford large libraries. A single manuscript could take a scribe many months to complete, and errors crept in with every copy. Trade in ideas moved at the same crawling pace as the ink dried. Around 1440, a goldsmith from Mainz named Johannes Gutenberg began experimenting with a system of movable metal type that could be arranged, inked, and reused, adapting a design borrowed from wine and olive presses to press paper against the inked letters. Within a few decades, printing shops using his technique had spread across dozens of European cities, and the cost of producing a book fell dramatically. This sudden abundance of cheap printed material fueled the spread of literacy, scientific ideas, and religious reform movements that reshaped the continent over the following century.'",
+    "expected_answer": "Johannes Gutenberg's invention of movable-type printing around 1440 made books cheap and widespread, fueling literacy and major cultural change across Europe."
+  },
+  {
+    "id": "v4_summary_002",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Summarize this paragraph in one sentence:\n\n'Coral reefs cover less than one percent of the ocean floor, yet they support roughly a quarter of all known marine species, making them among the most biologically rich ecosystems on the planet. Reefs are built slowly over thousands of years by tiny colonial animals called polyps, which secrete calcium carbonate skeletons that accumulate into the reef structure over many generations. These polyps host microscopic algae living in their tissues that supply them with most of their energy through photosynthesis and give reefs their vivid colors. When ocean temperatures rise even a degree or two above normal for a sustained period, the polyps expel these algae in a stress response, leaving behind a ghostly white skeleton in a process called bleaching. A bleached coral is not dead, but it is starving, and if warm conditions persist for too many weeks it will eventually die, taking much of the reef's biodiversity with it.'",
+    "expected_answer": "Coral reefs, built by algae-hosting polyps over thousands of years, undergo bleaching and can die when sustained high ocean temperatures cause the polyps to expel their symbiotic algae."
+  },
+  {
+    "id": "v4_summary_003",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Summarize this paragraph in one sentence:\n\n'Video game speedrunning began as an informal hobby among small groups of players trading tips on early forums, but it grew into an organized global community over the following two decades. Runners compete to complete a game as fast as possible, sometimes exploiting glitches and sometimes relying on pure execution skill within the game's normal rules, and both approaches have their own dedicated leaderboards. The Games Done Quick marathon, first held in 2010, turned the hobby into a fundraising phenomenon by livestreaming back-to-back speedruns for a full week and asking viewers to donate to charity. The event has since raised tens of millions of dollars for causes ranging from cancer research to disaster relief, and it now draws hundreds of thousands of live viewers for a single marathon.'",
+    "expected_answer": "Speedrunning grew from a niche hobby into a global community, and the Games Done Quick marathon (since 2010) has turned it into a major charity fundraiser that has raised tens of millions of dollars."
+  },
+  {
+    "id": "v4_summary_004",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Summarize this meeting in five bullets and list all action items:\n\n'During the product review meeting, Sofia opened by reporting that the new checkout flow had reduced cart abandonment by 12 percent since launch. Marcus disagreed with her methodology, arguing that the sample window was too short to draw that conclusion and that a full quarter of data was needed before celebrating. Priya then raised a separate concern: several users had reported the checkout page crashing on older Android devices, and support tickets about it had tripled in the last week. The team agreed the crash was the more urgent issue regardless of the abandonment debate. Marcus volunteered to pull a full quarter of conversion data before the next review. Priya said she would file a bug report and escalate the Android crash to the mobile team by Friday. Sofia agreed to hold off on any public announcement about the abandonment improvement until Marcus's fuller analysis was ready.'",
+    "expected_answer": "- Sofia reported a 12% drop in cart abandonment since the checkout redesign.\n- Marcus questioned the result, saying the sample window was too short.\n- Priya flagged a checkout crash on older Android devices with tripling support tickets.\n- The team agreed the Android crash was more urgent than the abandonment debate.\n- The abandonment announcement will wait until Marcus's fuller analysis.\n\nAction Items:\n- Marcus: pull a full quarter of conversion data before the next review.\n- Priya: file a bug report and escalate the Android crash to the mobile team by Friday.\n- Sofia: hold off on announcing the abandonment improvement."
+  },
+  {
+    "id": "v4_summary_005",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Summarize this meeting in five bullets and list all action items:\n\n'In the budget planning call, Devon opened by warning that the marketing spend had already exceeded 80 percent of its quarterly allocation with six weeks still remaining. Lena pushed back, noting that most of that spend went to a single campaign that had outperformed projections by nearly triple, so the overage was arguably justified. Tomas, representing finance, said the department still needed to stay within the approved ceiling regardless of performance, or he would have to flag it to the CFO. After some discussion, the group agreed to pause all non-essential campaigns for the rest of the quarter. Lena will prepare a performance report on the successful campaign to support a possible budget increase next quarter. Devon will send Tomas a revised spend forecast by Wednesday. Tomas will hold off on escalating to the CFO until he sees Devon's forecast.'",
+    "expected_answer": "- Devon warned marketing spend was at 80% of its quarterly budget with six weeks left.\n- Lena argued the overage was justified because one campaign outperformed projections by nearly 3x.\n- Tomas said the department must stay within the approved ceiling or he'd escalate to the CFO.\n- The group agreed to pause all non-essential campaigns for the rest of the quarter.\n- Tomas will hold off escalating until he sees Devon's revised forecast.\n\nAction Items:\n- Lena: prepare a performance report on the successful campaign.\n- Devon: send Tomas a revised spend forecast by Wednesday.\n- Tomas: hold off on escalating to the CFO pending Devon's forecast."
+  },
+  {
+    "id": "v4_summary_006",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Summarize the following meeting into five bullets and list all action items:\n\n'At the incident review, Priya explained that the outage began when a routine database migration script ran during peak traffic instead of the scheduled maintenance window. Jordan noted that the on-call alert had actually fired within two minutes, but no one acknowledged it for almost forty minutes because the paging app had been muted overnight for an unrelated test. Alicia pointed out that the migration script itself lacked a rollback plan, which is why the fix took over three hours instead of a quick revert. The team agreed on three follow-ups: Jordan will restore default paging app settings and audit for any other muted alerts by end of day. Alicia will require a rollback plan as a mandatory checklist item for all future migration scripts. Priya will draft a postmortem document and share it with the wider engineering team by next Monday.'",
+    "expected_answer": "- The outage was caused by a database migration script running during peak traffic instead of its scheduled window.\n- The on-call alert fired within two minutes but was missed for about 40 minutes because paging had been muted overnight.\n- The migration script had no rollback plan, extending the fix to over three hours.\n- Jordan will restore default paging settings and audit for other muted alerts by end of day.\n- Alicia will make a rollback plan a mandatory checklist item for migrations.\n\nAction Items:\n- Jordan: restore paging defaults and audit muted alerts (end of day).\n- Alicia: require rollback plans on all migration scripts.\n- Priya: draft and share the postmortem by next Monday."
+  },
+  {
+    "id": "v4_summary_007",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Create an executive summary of this report in exactly two sentences:\n\n'Global investment in renewable energy infrastructure reached a record high last year, driven primarily by falling costs in solar panel manufacturing and expanded battery storage capacity. Wind power installations grew more modestly, held back by permitting delays and supply chain bottlenecks in turbine components across several major markets. Analysts noted that while solar's growth trajectory now rivals early smartphone adoption curves, grid infrastructure in many countries has not kept pace, creating bottlenecks that occasionally force new solar farms to curtail output during peak generation hours. Policymakers are increasingly focused on grid modernization as the next critical investment area, with several governments announcing new funding programs aimed specifically at transmission and storage rather than generation capacity.'",
+    "expected_answer": "Renewable energy investment hit a record high last year on the back of cheaper solar and more battery storage, while wind growth lagged due to permitting and supply issues. Because grid infrastructure hasn't kept pace with solar's rapid growth, causing output curtailment, policymakers are now prioritizing funding for grid modernization over new generation capacity."
+  },
+  {
+    "id": "v4_summary_008",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Create an executive summary of this report in exactly two sentences:\n\n'A survey of over 400 mid-sized companies found that hybrid work arrangements have stabilized after several years of fluctuation, with most firms settling on a policy requiring two to three days per week in the office. Employee satisfaction scores were highest at companies that let teams choose which specific days to come in, rather than mandating fixed company-wide days. However, the survey also found that fully remote employees were twice as likely to be passed over for promotion within a two-year window compared to peers who spent at least some time in the office, even when performance reviews were similar. Researchers suggested this gap stems from reduced visibility to senior leadership rather than any measurable difference in output quality. Several of the surveyed companies said they were now piloting structured 'visibility programs,' such as skip-level meetings, specifically to close this promotion gap for remote staff.'",
+    "expected_answer": "Hybrid work has stabilized around two to three office days per week, with flexible day-choice policies driving the highest employee satisfaction. However, fully remote employees are twice as likely to be passed over for promotion despite similar performance, a visibility gap some companies are now addressing with structured programs like skip-level meetings."
+  },
+  {
+    "id": "v4_summary_009",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Summarize this text without mentioning the specific budget overrun percentage:\n\n'After an 18-month investigation, city auditors concluded that the downtown transit expansion project had run 40 percent over its original budget, largely due to unforeseen utility relocations beneath the old warehouse district. The audit did not find evidence of fraud or mismanagement, attributing the overage instead to incomplete underground utility maps from the 1960s that forced repeated redesigns mid-construction. The transit authority accepted the audit's findings and announced it would commission updated utility surveys before breaking ground on any future downtown projects. The expanded line is now expected to open to the public in March of next year.'",
+    "expected_answer": "City auditors found the downtown transit expansion went significantly over budget mainly due to outdated 1960s utility maps causing mid-construction redesigns, with no evidence of fraud; the authority will commission updated utility surveys before future projects, and the line is expected to open next March."
+  },
+  {
+    "id": "v4_summary_010",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Summarize this paragraph but do not mention the exact budget figure for the set design:\n\n'A regional theater company announced this week that its production of a reimagined classic play would move to a larger venue after its first run sold out within six hours, well ahead of the previous fastest sellout in the company's 30-year history. The move required renegotiating contracts with the original small-venue technical crew, several of whom could not commit to the larger venue's extended schedule and were replaced by outside contractors. Critics have praised the production's unconventional staging, particularly a rotating set design that was originally built on a tight budget of just under nine thousand dollars. The company's artistic director said the unexpected demand has already prompted early discussions about a potential national tour next year.'",
+    "expected_answer": "A regional theater company's reimagined classic sold out its first run in record time and is moving to a larger venue, requiring some crew changes; the acclaimed low-budget rotating set design has helped fuel early talk of a national tour next year."
+  },
+  {
+    "id": "v4_ner_001",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify people and locations: 'Jordan spent his summer studying abroad in Jordan before returning home to Chicago.'",
+    "expected_answer": {
+      "entities": [
+        {
+          "text": "Jordan",
+          "type": "PERSON"
+        },
+        {
+          "text": "Jordan",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Chicago",
+          "type": "LOCATION"
+        }
+      ]
+    }
+  },
+  {
+    "id": "v4_ner_002",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify people and organizations: 'Sarah Jenkins founded Jenkins & Wu Consulting after leaving her role at Deloitte.'",
+    "expected_answer": {
+      "entities": [
+        {
+          "text": "Sarah Jenkins",
+          "type": "PERSON"
+        },
+        {
+          "text": "Jenkins & Wu Consulting",
+          "type": "ORGANIZATION"
+        },
+        {
+          "text": "Deloitte",
+          "type": "ORGANIZATION"
+        }
+      ]
+    }
+  },
+  {
+    "id": "v4_ner_003",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify persons and organizations: 'Hope and Faith are qualities that every good leader should have, according to the report.'",
+    "expected_answer": {
+      "entities": []
+    }
+  },
+  {
+    "id": "v4_ner_004",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify money amounts and dates: 'The company reported a $4.2 million loss in Q3 2025, down from a $12 million loss the previous year, and expects to return to profit by 2027.'",
+    "expected_answer": {
+      "entities": [
+        {
+          "text": "$4.2 million",
+          "type": "MONEY"
+        },
+        {
+          "text": "Q3 2025",
+          "type": "DATE"
+        },
+        {
+          "text": "$12 million",
+          "type": "MONEY"
+        },
+        {
+          "text": "2027",
+          "type": "DATE"
+        }
+      ]
+    }
+  },
+  {
+    "id": "v4_ner_005",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify people and locations: 'Émilie Rousseau traveled from Montréal to visit the Château de Chenonceau in the Loire Valley.'",
+    "expected_answer": {
+      "entities": [
+        {
+          "text": "Émilie Rousseau",
+          "type": "PERSON"
+        },
+        {
+          "text": "Montréal",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Château de Chenonceau",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Loire Valley",
+          "type": "LOCATION"
+        }
+      ]
+    }
+  },
+  {
+    "id": "v4_ner_006",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify organizations and people: 'Amazon announced record profits, and CEO Andy Jassy said the growth was driven by AWS, Amazon's cloud division.'",
+    "expected_answer": {
+      "entities": [
+        {
+          "text": "Amazon",
+          "type": "ORGANIZATION"
+        },
+        {
+          "text": "Andy Jassy",
+          "type": "PERSON"
+        },
+        {
+          "text": "AWS",
+          "type": "ORGANIZATION"
+        }
+      ]
+    }
+  },
+  {
+    "id": "v4_ner_007",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Can you pull out the names and companies mentioned here? 'Dr. Elena Vasquez presented her findings to executives from Siemens and Bosch at the conference.'",
+    "expected_answer": {
+      "entities": [
+        {
+          "text": "Dr. Elena Vasquez",
+          "type": "PERSON"
+        },
+        {
+          "text": "Siemens",
+          "type": "ORGANIZATION"
+        },
+        {
+          "text": "Bosch",
+          "type": "ORGANIZATION"
+        }
+      ]
+    }
+  },
+  {
+    "id": "v4_ner_008",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify people, organizations, and locations in this passage: 'The quarterly innovation summit drew attendees from across the industry this year, with panel discussions covering everything from supply chain resilience to emerging manufacturing techniques. Attendance was up sharply from last year, reflecting renewed interest in the sector after a slow couple of years for capital investment. One of the more anticipated sessions featured a keynote from Priya Raman, Chief Technology Officer at Nexora Robotics, who spoke at length about automation trends before taking questions from the audience for nearly forty minutes. The event, held this year in Austin, wrapped up with a networking reception sponsored by a materials science firm called Ferrotech.'",
+    "expected_answer": {
+      "entities": [
+        {
+          "text": "Priya Raman",
+          "type": "PERSON"
+        },
+        {
+          "text": "Nexora Robotics",
+          "type": "ORGANIZATION"
+        },
+        {
+          "text": "Austin",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Ferrotech",
+          "type": "ORGANIZATION"
+        }
+      ]
+    }
+  },
+  {
+    "id": "v4_ner_009",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify people and dates: 'On May 3, 2024, investor Marcus Chen closed a deal worth 50 million dollars with a firm founded in 1998.'",
+    "expected_answer": {
+      "entities": [
+        {
+          "text": "Marcus Chen",
+          "type": "PERSON"
+        },
+        {
+          "text": "May 3, 2024",
+          "type": "DATE"
+        },
+        {
+          "text": "1998",
+          "type": "DATE"
+        }
+      ]
+    }
+  },
+  {
+    "id": "v4_ner_010",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Identify money amounts: 'The weather was clear and sunny throughout the entire hiking trip, with temperatures staying comfortable all weekend.'",
+    "expected_answer": {
+      "entities": []
+    }
+  },
+  {
+    "id": "v4_debug_001",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This Python function is supposed to return all numbers from 1 up to and including n, but it's missing the last number.\n\ndef up_to(n):\n    return list(range(1, n))",
+    "expected_answer": "def up_to(n):\n    return list(range(1, n + 1))"
+  },
+  {
+    "id": "v4_debug_002",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This Python function should return True only when a number is strictly positive, but it also returns True for zero.\n\ndef is_positive(n):\n    return n >= 0",
+    "expected_answer": "def is_positive(n):\n    return n > 0"
+  },
+  {
+    "id": "v4_debug_003",
+    "category": "code_debugging",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Calling this function multiple times gives surprising accumulating results instead of a fresh list each time.\n\ndef add_item(item, bucket=[]):\n    bucket.append(item)\n    return bucket",
+    "expected_answer": "def add_item(item, bucket=None):\n    if bucket is None:\n        bucket = []\n    bucket.append(item)\n    return bucket"
+  },
+  {
+    "id": "v4_debug_004",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This JavaScript function should return the sum of the first n natural numbers (1 through n), but for n=5 it returns 10 instead of 15.\n\nfunction sumFirstN(n) {\n  let total = 0;\n  for (let i = 1; i < n; i++) {\n    total += i;\n  }\n  return total;\n}",
+    "expected_answer": "function sumFirstN(n) {\n  let total = 0;\n  for (let i = 1; i <= n; i++) {\n    total += i;\n  }\n  return total;\n}"
+  },
+  {
+    "id": "v4_debug_005",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This Python function computes the average of a list of numbers, but it crashes on an empty list instead of returning 0.\n\ndef avg(nums):\n    return sum(nums) / len(nums)",
+    "expected_answer": "def avg(nums):\n    return sum(nums) / len(nums) if nums else 0"
+  },
+  {
+    "id": "v4_debug_006",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This Python function is meant to return the absolute difference between two numbers, but it gives the wrong sign for some inputs.\n\ndef abs_diff(a, b):\n    return a - b",
+    "expected_answer": "def abs_diff(a, b):\n    return abs(a - b)"
+  },
+  {
+    "id": "v4_debug_007",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This JavaScript function should check whether a number is between 1 and 10 inclusive, but it always returns true.\n\nfunction inRange(n) {\n  return n >= 1 || n <= 10;\n}",
+    "expected_answer": "function inRange(n) {\n  return n >= 1 && n <= 10;\n}"
+  },
+  {
+    "id": "v4_debug_008",
+    "category": "code_debugging",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "query_validation",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This SQL query is supposed to list each department along with its average salary, but it's showing every individual employee's salary instead of an average per department.\n\nSELECT department, salary FROM employees;",
+    "expected_answer": "SELECT department, AVG(salary) FROM employees GROUP BY department;"
+  },
+  {
+    "id": "v4_debug_009",
+    "category": "code_debugging",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This Java method should return true only for numbers divisible by both 3 and 5, but it incorrectly returns true for numbers divisible by just one of them.\n\npublic boolean isFizzBuzzNumber(int n) {\n    return n % 3 == 0 || n % 5 == 0;\n}",
+    "expected_answer": "public boolean isFizzBuzzNumber(int n) {\n    return n % 3 == 0 && n % 5 == 0;\n}"
+  },
+  {
+    "id": "v4_debug_010",
+    "category": "code_debugging",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This C function is supposed to count the number of vowels in a string, but it undercounts because it stops one character early.\n\nint count_vowels(const char *s) {\n    int count = 0;\n    int len = strlen(s);\n    for (int i = 0; i < len - 1; i++) {\n        if (strchr(\"aeiouAEIOU\", s[i])) count++;\n    }\n    return count;\n}",
+    "expected_answer": "int count_vowels(const char *s) {\n    int count = 0;\n    int len = strlen(s);\n    for (int i = 0; i < len; i++) {\n        if (strchr(\"aeiouAEIOU\", s[i])) count++;\n    }\n    return count;\n}"
+  },
+  {
+    "id": "v4_gen_001",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `running_max` that takes a list of integers and returns a new list where each element is the maximum value seen so far up to that index. Handle an empty list by returning an empty list.",
+    "expected_answer": "def running_max(nums):\n    result = []\n    best = None\n    for n in nums:\n        best = n if best is None else max(best, n)\n        result.append(best)\n    return result"
+  },
+  {
+    "id": "v4_gen_002",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Create a JavaScript function `countUnique` that takes an array of strings and returns the number of distinct values, treating values case-insensitively (so 'Cat' and 'cat' count as the same).",
+    "expected_answer": "function countUnique(arr) {\n  return new Set(arr.map((s) => s.toLowerCase())).size;\n}"
+  },
+  {
+    "id": "v4_gen_003",
+    "category": "code_generation",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "query_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a SQL query to find the names of customers who have placed more than 3 orders, using tables `customers(customer_id, name)` and `orders(order_id, customer_id)`.",
+    "expected_answer": "SELECT c.name FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.customer_id, c.name HAVING COUNT(o.order_id) > 3;"
+  },
+  {
+    "id": "v4_gen_004",
+    "category": "code_generation",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I need something that takes a sentence and tells me how many words in it are palindromes. Put together a Python solution called `count_palindrome_words`.",
+    "expected_answer": "def count_palindrome_words(s):\n    count = 0\n    for w in s.split():\n        cleaned = ''.join(c.lower() for c in w if c.isalnum())\n        if cleaned and cleaned == cleaned[::-1]:\n            count += 1\n    return count"
+  },
+  {
+    "id": "v4_gen_005",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Create a Java method `isPerfectSquare` that returns `true` if a given non-negative integer is a perfect square, and `false` otherwise.",
+    "expected_answer": "public boolean isPerfectSquare(int n) {\n    if (n < 0) return false;\n    int root = (int) Math.sqrt(n);\n    return root * root == n || (root + 1) * (root + 1) == n;\n}"
+  },
+  {
+    "id": "v4_gen_006",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `factorial(n)` that returns n! for non-negative integers, and raises a `ValueError` for negative inputs.",
+    "expected_answer": "def factorial(n):\n    if n < 0:\n        raise ValueError('n must be non-negative')\n    result = 1\n    for i in range(2, n + 1):\n        result *= i\n    return result"
+  },
+  {
+    "id": "v4_gen_007",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `interleave` that takes two lists and returns a single list alternating elements from each, starting with the first list. If one list is longer, append its remaining elements at the end.",
+    "expected_answer": "def interleave(a, b):\n    result = []\n    for x, y in zip(a, b):\n        result.append(x)\n        result.append(y)\n    result.extend(a[len(b):] if len(a) > len(b) else b[len(a):])\n    return result"
+  },
+  {
+    "id": "v4_gen_008",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "schema_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Design a SQL table `products` with columns: `product_id` (primary key), `name`, `price` (decimal), and `category_id` (foreign key referencing `categories(category_id)`).",
+    "expected_answer": "CREATE TABLE products (\n    product_id INT PRIMARY KEY,\n    name VARCHAR(255),\n    price DECIMAL(10, 2),\n    category_id INT,\n    FOREIGN KEY (category_id) REFERENCES categories(category_id)\n);"
+  },
+  {
+    "id": "v4_gen_009",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `safe_index(lst, i)` that returns the element at index `i` in `lst`, or `None` if the index is out of range.",
+    "expected_answer": "def safe_index(lst, i):\n    return lst[i] if 0 <= i < len(lst) else None"
+  },
+  {
+    "id": "v4_gen_010",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a function in C that takes an array of integers and its length, and returns the sum of only the even numbers in the array.",
+    "expected_answer": "int sum_even(int *arr, int len) {\n    int sum = 0;\n    for (int i = 0; i < len; i++) {\n        if (arr[i] % 2 == 0) sum += arr[i];\n    }\n    return sum;\n}"
+  },
+  {
+    "id": "v4_logic_001",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "All engineers at this company know how to code. Priya knows how to code. Does it follow that Priya is an engineer at this company?",
+    "expected_answer": {
+      "answer": "No, it does not necessarily follow.",
+      "valid": true
+    }
+  },
+  {
+    "id": "v4_logic_002",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "If today is Thursday, what day of the week was it 10 days ago?",
+    "expected_answer": {
+      "answer": "Monday",
+      "valid": true
+    }
+  },
+  {
+    "id": "v4_logic_003",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Statement 1: Every key in the box is made of brass. Statement 2: The key Maria is holding came from the box. Statement 3: The key Maria is holding is made of steel. Are these three statements consistent with each other?",
+    "expected_answer": {
+      "answer": "No",
+      "valid": false
+    }
+  },
+  {
+    "id": "v4_logic_004",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Five people—Nora, Omar, Petra, Quinn, and Rosa—sit in a row of five seats numbered 1 to 5 from left to right. Omar sits immediately to the right of Nora. Rosa sits in seat 5. Petra sits at one end of the row. Quinn does not sit next to Rosa. Nora does not sit in seat 1 or seat 5. Who sits in seat 2?",
+    "expected_answer": {
+      "answer": "Quinn",
+      "valid": true
+    }
+  },
+  {
+    "id": "v4_logic_005",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Four runners—Blake, Casey, Drew, and Ellis—finished a race with no ties. Blake finished ahead of exactly two runners. Drew finished last. Casey did not finish first. Who finished first?",
+    "expected_answer": {
+      "answer": "Ellis",
+      "valid": true
+    }
+  },
+  {
+    "id": "v4_logic_006",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Statement 1: All members of the committee live in Ohio. Statement 2: Maria is a committee member who lives in Texas. Statement 3: No committee member lives outside Ohio. Are these three statements consistent with each other?",
+    "expected_answer": {
+      "answer": "No",
+      "valid": false
+    }
+  },
+  {
+    "id": "v4_logic_007",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Three coworkers—Jamie, Kim, and Lee—are ranked by an unknown metric. Jamie ranks higher than Kim. We are not told anything about Lee's rank relative to the other two. Can we determine Lee's exact rank among the three?",
+    "expected_answer": {
+      "answer": null,
+      "valid": false
+    }
+  },
+  {
+    "id": "v4_logic_008",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Four boxes—labeled 1 through 4 from left to right—each contain a different item: keys, coins, letters, or tools. The box with keys is somewhere to the right of the box with coins. The box with letters is immediately to the left of the box with tools. Box 1 contains coins. Box 4 does not contain tools. Which box contains the tools?",
+    "expected_answer": {
+      "answer": "3",
+      "valid": true
+    }
+  },
+  {
+    "id": "v4_logic_009",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Every certified technician passed the safety exam. Raj is a certified technician. Did Raj pass the safety exam?",
+    "expected_answer": {
+      "answer": "Yes",
+      "valid": true
+    }
+  },
+  {
+    "id": "v4_logic_010",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Four contestants—Wendy, Xavier, Yara, and Zack—each received a different result: gold medal, silver medal, bronze medal, or no medal. Xavier did not win gold or silver. Yara finished ahead of Zack but did not win gold. Wendy did not win bronze or no medal. Zack did not receive no medal. Who won the silver medal?",
+    "expected_answer": {
+      "answer": "Yara",
+      "valid": true
+    }
+  }
+]
