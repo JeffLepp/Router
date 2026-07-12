@@ -1,0 +1,928 @@
+[
+  {
+    "id": "v3_qa_001",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "For a crossword clue I'm stuck on: the artist who painted 'The Starry Night' — who is it?",
+    "expected_answer": "Vincent van Gogh"
+  },
+  {
+    "id": "v3_qa_002",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "On the periodic table hanging in our chemistry lab, what is the symbol shown for sodium?",
+    "expected_answer": "Na"
+  },
+  {
+    "id": "v3_qa_003",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which planet in our solar system orbits closest to the sun?",
+    "expected_answer": "Mercury"
+  },
+  {
+    "id": "v3_qa_004",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Comparing Russia and Canada by total land area, which country is larger?",
+    "expected_answer": "Russia"
+  },
+  {
+    "id": "v3_qa_005",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which was invented earlier, the telephone or the television?",
+    "expected_answer": "The telephone"
+  },
+  {
+    "id": "v3_qa_006",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which gas makes up the largest share of Earth's atmosphere?",
+    "expected_answer": "Nitrogen"
+  },
+  {
+    "id": "v3_qa_007",
+    "category": "actual_qa",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": true,
+    "recommended_tool": "browser",
+    "prompt": "As of July 2026, who serves as Secretary-General of the United Nations?",
+    "expected_answer": "António Guterres"
+  },
+  {
+    "id": "v3_qa_008",
+    "category": "actual_qa",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": true,
+    "recommended_tool": "browser",
+    "prompt": "Which company's Crew Dragon capsule carried the first all-civilian orbital crew on the Inspiration4 mission in September 2021?",
+    "expected_answer": "SpaceX"
+  },
+  {
+    "id": "v3_qa_009",
+    "category": "actual_qa",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "How tall is the tallest mountain on the lost continent of Lemuria?",
+    "expected_answer": null
+  },
+  {
+    "id": "v3_qa_010",
+    "category": "actual_qa",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What did Cleopatra write in her private diary on her twentieth birthday?",
+    "expected_answer": null
+  },
+
+  {
+    "id": "v3_math_001",
+    "category": "math_reasoning",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A parking garage has 6 levels, and each level holds 85 cars. During a festival, 3 identical garages fill completely. How many cars are parked in total?",
+    "expected_answer": "1530"
+  },
+  {
+    "id": "v3_math_002",
+    "category": "math_reasoning",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Omar read 23 pages on Monday, twice that many on Tuesday, and 15 pages on Wednesday. How many pages did he read over the three days?",
+    "expected_answer": "84"
+  },
+  {
+    "id": "v3_math_003",
+    "category": "math_reasoning",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Take the number 13, double it, then subtract 5. What number results?",
+    "expected_answer": "21"
+  },
+  {
+    "id": "v3_math_004",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A train covers 240 km in 4 hours at a constant speed. How many kilometers per hour is it traveling?",
+    "expected_answer": "60"
+  },
+  {
+    "id": "v3_math_005",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Pencils come in packs of 12 that cost $3 per pack. Ms. Alvarez needs exactly 60 pencils for her class. How many dollars does she spend?",
+    "expected_answer": "15"
+  },
+  {
+    "id": "v3_math_006",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A rectangular rug measures 6 meters by 7 meters. How many square meters of floor does it cover?",
+    "expected_answer": "42"
+  },
+  {
+    "id": "v3_math_007",
+    "category": "math_reasoning",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unordered_numeric_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "List every real solution of x² + 2x − 15 = 0.",
+    "expected_answer": "[-5, 3]"
+  },
+  {
+    "id": "v3_math_008",
+    "category": "math_reasoning",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "numeric_tolerance",
+    "requires_tools": true,
+    "recommended_tool": "calculator",
+    "prompt": "A bag holds 5 green marbles and 3 yellow marbles. You grab two marbles at once. What is the probability that both are green?",
+    "expected_answer": "5/14"
+  },
+  {
+    "id": "v3_math_009",
+    "category": "math_reasoning",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Two numbers add up to 10. What is the larger of the two numbers?",
+    "expected_answer": null
+  },
+  {
+    "id": "v3_math_010",
+    "category": "math_reasoning",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A triangle's three sides measure 4 cm, 5 cm, and 12 cm. How many square centimeters does it enclose?",
+    "expected_answer": null
+  },
+
+  {
+    "id": "v3_sentiment_001",
+    "category": "sentiment_analysis",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I have repurchased this coffee three times already; the beans smell heavenly and brew a smooth, rich cup.",
+    "expected_answer": {"sentiment": "positive", "confidence": 0.95}
+  },
+  {
+    "id": "v3_sentiment_002",
+    "category": "sentiment_analysis",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The novel dragged from the very first chapter, and I gave up halfway through out of pure boredom.",
+    "expected_answer": {"sentiment": "negative", "confidence": 0.95}
+  },
+  {
+    "id": "v3_sentiment_003",
+    "category": "sentiment_analysis",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Customer support left me on hold for an hour and then dropped my call twice in one afternoon.",
+    "expected_answer": {"sentiment": "negative", "confidence": 0.90}
+  },
+  {
+    "id": "v3_sentiment_004",
+    "category": "sentiment_analysis",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "aspect_based_classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The camera captures gorgeous low-light shots, but the battery is drained before lunchtime.",
+    "expected_answer": {"sentiment": "mixed", "aspects": {"camera": "positive", "battery": "negative"}}
+  },
+  {
+    "id": "v3_sentiment_005",
+    "category": "sentiment_analysis",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "aspect_based_classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Checkout on the website takes seconds, though the delivery needed three weeks to show up.",
+    "expected_answer": {"sentiment": "mixed", "aspects": {"checkout": "positive", "delivery": "negative"}}
+  },
+  {
+    "id": "v3_sentiment_006",
+    "category": "sentiment_analysis",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "aspect_based_classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The acting carried the whole film, even if the plot fell apart in the final act.",
+    "expected_answer": {"sentiment": "mixed", "aspects": {"acting": "positive", "plot": "negative"}}
+  },
+  {
+    "id": "v3_sentiment_007",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Bravo to the developers — the latest update wiped my saved progress and now crashes twice an hour.",
+    "expected_answer": {"sentiment": "negative", "confidence": 0.8}
+  },
+  {
+    "id": "v3_sentiment_008",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Nothing says premium quality like a brand-new jacket shedding its buttons on day one.",
+    "expected_answer": {"sentiment": "negative", "confidence": 0.8}
+  },
+  {
+    "id": "v3_sentiment_009",
+    "category": "sentiment_analysis",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The conference starts at nine on Monday and runs through Thursday.",
+    "expected_answer": {"sentiment": "neutral", "confidence": 0.5}
+  },
+  {
+    "id": "v3_sentiment_010",
+    "category": "sentiment_analysis",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This model comes in three sizes and two colors.",
+    "expected_answer": {"sentiment": "neutral", "confidence": 0.5}
+  },
+
+  {
+    "id": "v3_summary_001",
+    "category": "summarization",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Boil the following paragraph down to a single sentence:\n\n'Permafrost underlies nearly a quarter of the land in the Northern Hemisphere. As the climate warms, this frozen ground thaws unevenly, buckling roads, cracking building foundations, and tilting pipelines across Arctic towns. The thaw also releases carbon dioxide and methane that were locked in frozen organic matter for thousands of years, which in turn accelerates the warming that caused the thaw. Engineers now cool the ground beneath critical structures with thermosiphons, while climate researchers warn that emissions from thawing ground remain absent from most national carbon budgets.'",
+    "expected_answer": {"summary": "Thawing permafrost is damaging Arctic infrastructure and releasing long-stored greenhouse gases that speed further warming, prompting engineering fixes and warnings that these emissions are missing from national carbon budgets."}
+  },
+  {
+    "id": "v3_summary_002",
+    "category": "summarization",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What is the takeaway of this paragraph, in a single sentence?\n\n'City blocks with mature street trees can be several degrees cooler on summer afternoons than treeless blocks nearby. Leaves shade pavement that would otherwise absorb and re-radiate heat, and the water that trees draw from the soil evaporates through their leaves, cooling the surrounding air. Because heat waves hit hardest in neighborhoods with the least canopy, many cities now map tree cover against emergency-room visits and target new planting where the health burden is greatest.'",
+    "expected_answer": {"summary": "Street trees cool city blocks through shade and evaporation, so cities are targeting new tree planting in low-canopy neighborhoods where heat harms health the most."}
+  },
+  {
+    "id": "v3_summary_003",
+    "category": "summarization",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "In a sentence or two, tell me what this news item says:\n\n'Residents of the Harborview neighborhood switched on their shared solar array last week after two years of planning. The two-hundred-panel installation sits on the roof of a former cannery and feeds power to ninety subscribing households, which receive credits on their utility bills. Organizers financed the project through a community cooperative, allowing renters — who rarely benefit from rooftop solar — to buy shares. The cooperative plans a second array on a school gymnasium next year.'",
+    "expected_answer": {"summary": "A Harborview community cooperative activated a two-hundred-panel shared solar array on a former cannery that credits ninety subscribing households, including renters, and plans a second array on a school gymnasium next year."}
+  },
+  {
+    "id": "v3_summary_004",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Recap this team check-in using five bullet points, and note all follow-up tasks:\n\n'The QA weekly opened with Marta reporting that the release-candidate build crashed on older tablets, which she traced to an out-of-memory bug in the image loader. Sam said automated test coverage climbed to 71 percent after the new suite merged. Lena warned that the app-store review deadline is Friday, leaving three days of buffer. The group agreed to hold the release until the tablet crash is resolved. Follow-up tasks: Marta will patch the image loader by Wednesday, Sam will add regression tests for the crash, and Lena will file for a one-week extension with the app store.'",
+    "expected_answer": {
+      "summary": [
+        "The QA team reviewed the release-candidate build at its weekly check-in.",
+        "Marta traced a crash on older tablets to an out-of-memory bug in the image loader.",
+        "Sam reported automated test coverage rose to 71 percent after the new suite merged.",
+        "Lena warned the app-store review deadline is Friday with three days of buffer.",
+        "The team agreed to hold the release until the tablet crash is resolved."
+      ],
+      "action_items": [
+        "Marta to patch the image loader by Wednesday.",
+        "Sam to add regression tests for the tablet crash.",
+        "Lena to file for a one-week extension with the app store."
+      ]
+    }
+  },
+  {
+    "id": "v3_summary_005",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Turn these minutes into five short bullets plus the list of assigned tasks:\n\n'At the logistics operations sync, Harpreet reported that the new routing software cut average delivery times by 12 percent in the pilot region. Coco noted that driver overtime costs rose 8 percent during the same period, mostly from rural routes. Miguel proposed consolidating rural deliveries to three days a week. The team decided to expand the routing pilot to two more regions before the holiday peak. Assigned tasks: Harpreet will prepare the expansion rollout plan, Coco will break down overtime costs by route type, and Miguel will model the three-day rural schedule.'",
+    "expected_answer": {
+      "summary": [
+        "Harpreet reported the new routing software cut average delivery times by 12 percent in the pilot region.",
+        "Coco noted driver overtime costs rose 8 percent, mostly on rural routes.",
+        "Miguel proposed consolidating rural deliveries to three days a week.",
+        "The team decided to expand the routing pilot to two more regions before the holiday peak.",
+        "Tasks were assigned to the team."
+      ],
+      "action_items": [
+        "Harpreet to prepare the expansion rollout plan.",
+        "Coco to break down overtime costs by route type.",
+        "Miguel to model the three-day rural delivery schedule."
+      ]
+    }
+  },
+  {
+    "id": "v3_summary_006",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Compress the following into five bullets and pull out each action item:\n\n'The museum staff meeting focused on the summer exhibition. Director Alvarez confirmed the loan of twelve paintings from a partner institution in Vienna. Curator Boateng flagged that climate-control upgrades in the east gallery are behind schedule. Ticketing lead Chen projected a 20 percent attendance rise based on advance sales. The staff agreed to extend evening hours on Thursdays during the exhibition. Action items: Alvarez will sign the loan agreement this week, Boateng will get a revised timeline from the contractor, and Chen will hire two seasonal ticketing staff.'",
+    "expected_answer": {
+      "summary": [
+        "The museum staff meeting focused on the summer exhibition.",
+        "Director Alvarez confirmed the loan of twelve paintings from a partner institution in Vienna.",
+        "Curator Boateng flagged that climate-control upgrades in the east gallery are behind schedule.",
+        "Ticketing lead Chen projected a 20 percent attendance rise based on advance sales.",
+        "The staff agreed to extend Thursday evening hours during the exhibition."
+      ],
+      "action_items": [
+        "Alvarez to sign the loan agreement this week.",
+        "Boateng to obtain a revised timeline from the contractor.",
+        "Chen to hire two seasonal ticketing staff."
+      ]
+    }
+  },
+  {
+    "id": "v3_summary_007",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a three-sentence overview of this report for a busy executive:\n\n'The 2026 Battery Recycling Market Review surveys collection and processing capacity across North America and Europe. Recycled lithium output doubled in 2025 as four large hydrometallurgical plants came online, and recovered materials now meet 9 percent of regional battery-grade demand. Collection remains the bottleneck: fewer than half of end-of-life electric-vehicle packs reach certified recyclers, with the rest exported, stockpiled, or lost to informal channels. Processing margins tightened as virgin lithium prices fell through the year. The review concludes that deposit-style return incentives and standardized pack designs would do more for supply than additional processing plants.'",
+    "expected_answer": {"summary": "The 2026 Battery Recycling Market Review finds recycled lithium output doubled in 2025 and now meets 9 percent of regional battery-grade demand, but fewer than half of end-of-life EV packs reach certified recyclers. Falling virgin lithium prices squeezed processing margins. The review concludes that deposit-style return incentives and standardized pack designs matter more for supply than new processing plants."}
+  },
+  {
+    "id": "v3_summary_008",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "In exactly three sentences, brief me on this study:\n\n'The Metropolitan Air Quality Study 2025 measured pollutant levels at 300 sites across twelve cities before and after low-emission zones were introduced. Nitrogen dioxide concentrations fell 24 percent on average inside the zones, with the steepest drops near schools and hospitals that had been pollution hot spots. Particulate matter declined only 6 percent, since much of it drifts in from construction, tire wear, and sources outside the zones. Asthma-related emergency visits by children living inside the zones dropped 11 percent within eighteen months. The authors recommend expanding zone boundaries and pairing them with construction-dust controls.'",
+    "expected_answer": {"summary": "The Metropolitan Air Quality Study 2025 found that low-emission zones cut nitrogen dioxide by 24 percent and children's asthma-related emergency visits by 11 percent across twelve cities. Particulate matter fell only 6 percent because much of it comes from construction, tire wear, and sources outside the zones. The authors recommend wider zone boundaries paired with construction-dust controls."}
+  },
+  {
+    "id": "v3_summary_009",
+    "category": "summarization",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Recap the passage below, but leave out its final decision:\n\n'The village debated the wind-farm proposal for nearly a year. Supporters pointed to lease payments that would fund the school and library, while opponents worried about noise and the view across the moor. An independent survey found that most residents under forty favored the project, while older residents were split. At Tuesday's assembly, the village voted narrowly to approve construction of six turbines.'",
+    "expected_answer": {"summary": "After nearly a year of debate over a wind-farm proposal, supporters cited lease payments that would fund the school and library, opponents raised noise and landscape concerns, and a survey showed most residents under forty in favor while older residents were split."}
+  },
+  {
+    "id": "v3_summary_010",
+    "category": "summarization",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Give a short recap of this news item without saying when it happened:\n\n'On 9 April 2026, the port city of Valparaíso opened its long-delayed cable-stayed bridge across the bay. The crossing shortens the commute between the port district and the northern suburbs by forty minutes and includes a protected cycle lane, the first on any bridge in the region. Officials expect ten thousand vehicles to use it daily.'",
+    "expected_answer": {"summary": "Valparaíso opened its long-delayed cable-stayed bridge across the bay, cutting the commute between the port district and northern suburbs by forty minutes, adding the region's first protected bridge cycle lane, and expecting ten thousand vehicles daily."}
+  },
+
+  {
+    "id": "v3_ner_001",
+    "category": "named_entity_recognition",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Pull the people and places out of this passage: 'The harbor crowd had waited since dawn with banners and flags. When Greta Thunberg finally sailed into New York after two weeks at sea, the cheering drowned out the gulls, and volunteers guided the yacht to its berth.'",
+    "expected_answer": {"entities": [{"text": "Greta Thunberg", "type": "PERSON"}, {"text": "New York", "type": "LOCATION"}]}
+  },
+  {
+    "id": "v3_ner_002",
+    "category": "named_entity_recognition",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Note every company and every dollar amount in the text below: 'The funding round closed quietly, without the usual press blitz. SoftBank wired $250 million to the robotics startup Dexterity Labs, and rival investor Sequoia reportedly passed on the deal at the last minute.'",
+    "expected_answer": {"entities": [{"text": "SoftBank", "type": "ORGANIZATION"}, {"text": "$250 million", "type": "MONEY"}, {"text": "Dexterity Labs", "type": "ORGANIZATION"}, {"text": "Sequoia", "type": "ORGANIZATION"}]}
+  },
+  {
+    "id": "v3_ner_003",
+    "category": "named_entity_recognition",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "'The retrospective fills three galleries with self-portraits. Frida Kahlo, born on July 6, 1907, painted many of them while recovering from injury, and curators arranged the works in order of composition.' Which person and which date appear in this passage?",
+    "expected_answer": {"entities": [{"text": "Frida Kahlo", "type": "PERSON"}, {"text": "July 6, 1907", "type": "DATE"}]}
+  },
+  {
+    "id": "v3_ner_004",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "From the news brief below, pick out each person, organization, date, and location: 'Supply-chain audits rarely make headlines. Yet when Tim Cook of Apple toured a supplier campus in Hanoi on June 12, 2024, coverage ran for days, and labor groups renewed calls for independent inspections.'",
+    "expected_answer": {"entities": [{"text": "Tim Cook", "type": "PERSON"}, {"text": "Apple", "type": "ORGANIZATION"}, {"text": "Hanoi", "type": "LOCATION"}, {"text": "June 12, 2024", "type": "DATE"}]}
+  },
+  {
+    "id": "v3_ner_005",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Name each location and each event in this text: 'Ticket demand has already overwhelmed the booking portal twice. The 2026 Winter Olympics open in Milan, with alpine competitions staged in Cortina, and organizers promise extra trains between the two venues.'",
+    "expected_answer": {"entities": [{"text": "2026 Winter Olympics", "type": "EVENT"}, {"text": "Milan", "type": "LOCATION"}, {"text": "Cortina", "type": "LOCATION"}]}
+  },
+  {
+    "id": "v3_ner_006",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Point out the organizations and the people in the following: 'The keynote ran ninety minutes without a single demo. Near the end, Rivian founder RJ Scaringe confirmed a long-rumored battery supply agreement with Panasonic, drawing applause from the packed hall.'",
+    "expected_answer": {"entities": [{"text": "Rivian", "type": "ORGANIZATION"}, {"text": "RJ Scaringe", "type": "PERSON"}, {"text": "Panasonic", "type": "ORGANIZATION"}]}
+  },
+  {
+    "id": "v3_ner_007",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Sort the proper nouns in this sentence into PERSON, ORGANIZATION, or LOCATION: 'To mark its anniversary, Tesla unveiled a small exhibit honoring Nikola Tesla at the visitor center of its Austin factory.'",
+    "expected_answer": {"entities": [{"text": "Tesla", "type": "ORGANIZATION"}, {"text": "Nikola Tesla", "type": "PERSON"}, {"text": "Austin", "type": "LOCATION"}]}
+  },
+  {
+    "id": "v3_ner_008",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "From this delivery record, capture the driver name, the tracking number, and the destination city: 'Route seventeen ran ahead of schedule all morning. Driver Priya Nair delivered parcel ZX-99841 to Leeds before noon, then logged a thirty-minute break.'",
+    "expected_answer": {"entities": [{"text": "Priya Nair", "type": "DRIVER"}, {"text": "ZX-99841", "type": "TRACKING_NUMBER"}, {"text": "Leeds", "type": "DESTINATION_CITY"}]}
+  },
+  {
+    "id": "v3_ner_009",
+    "category": "named_entity_recognition",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What entities are present in this sentence: 'The name Washington can denote an American state or the country's first president.'",
+    "expected_answer": {"entities": [{"text": "Washington", "type": "LOCATION"}, {"text": "Washington", "type": "PERSON"}]}
+  },
+  {
+    "id": "v3_ner_010",
+    "category": "named_entity_recognition",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Do any organizations or monetary amounts appear in this sentence: 'A quiet afternoon passed with nothing bought, nothing sold, and nobody signing anything.'",
+    "expected_answer": {"entities": []}
+  },
+
+  {
+    "id": "v3_debug_001",
+    "category": "code_debugging",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "python",
+    "prompt": "This Python conversion should turn Celsius into Fahrenheit, yet to_fahrenheit(100) gives about 87.6 instead of 212. Repair the formula.\n\n```python\ndef to_fahrenheit(celsius):\n    return celsius * 5 / 9 + 32\n```",
+    "expected_answer": "def to_fahrenheit(celsius):\n    return celsius * 9 / 5 + 32"
+  },
+  {
+    "id": "v3_debug_002",
+    "category": "code_debugging",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "python",
+    "prompt": "The Python function below should collect every negative number from a list, but it stops after examining only the first element. Correct it.\n\n```python\ndef find_negatives(nums):\n    result = []\n    for n in nums:\n        if n < 0:\n            result.append(n)\n        return result\n```",
+    "expected_answer": "def find_negatives(nums):\n    result = []\n    for n in nums:\n        if n < 0:\n            result.append(n)\n    return result"
+  },
+  {
+    "id": "v3_debug_003",
+    "category": "code_debugging",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "node",
+    "prompt": "In JavaScript, this helper should give the final element of an array but always yields undefined. Fix it.\n\n```javascript\nfunction last(arr) {\n  return arr[arr.length];\n}\n```",
+    "expected_answer": "function last(arr) {\n  return arr[arr.length - 1];\n}"
+  },
+  {
+    "id": "v3_debug_004",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "python",
+    "prompt": "This Python function should limit a value to the range [low, high], but out-of-range inputs come back as the wrong bound. Correct it.\n\n```python\ndef clamp(value, low, high):\n    if value < low:\n        return high\n    if value > high:\n        return low\n    return value\n```",
+    "expected_answer": "def clamp(value, low, high):\n    if value < low:\n        return low\n    if value > high:\n        return high\n    return value"
+  },
+  {
+    "id": "v3_debug_005",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "node",
+    "prompt": "This JavaScript function should return the words of a sentence in reverse order as a single string, but callers receive an array instead. Fix it.\n\n```javascript\nfunction reverseWords(sentence) {\n  return sentence.split(\" \").reverse();\n}\n```",
+    "expected_answer": "function reverseWords(sentence) {\n  return sentence.split(\" \").reverse().join(\" \");\n}"
+  },
+  {
+    "id": "v3_debug_006",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "java",
+    "prompt": "This Java method should average two integers as a double, but average(3, 4) returns 3.0 rather than 3.5. Repair it.\n\n```java\npublic double average(int a, int b) {\n  return (a + b) / 2;\n}\n```",
+    "expected_answer": "public double average(int a, int b) {\n    return (a + b) / 2.0;\n}"
+  },
+  {
+    "id": "v3_debug_007",
+    "category": "code_debugging",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "python",
+    "prompt": "Given a list of 0s and 1s, this Python function should return the length of the longest unbroken run of 1s, but it never reports anything above 1. Correct it.\n\n```python\ndef longest_run(bits):\n    best = 0\n    run = 0\n    for b in bits:\n        if b == 1:\n            run += 1\n        best = max(best, run)\n        run = 0\n    return best\n```",
+    "expected_answer": "def longest_run(bits):\n    best = 0\n    run = 0\n    for b in bits:\n        if b == 1:\n            run += 1\n            best = max(best, run)\n        else:\n            run = 0\n    return best"
+  },
+  {
+    "id": "v3_debug_008",
+    "category": "code_debugging",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "query_validation",
+    "requires_tools": true,
+    "recommended_tool": "sql",
+    "prompt": "Each order row should appear once with its customer's name, but this SQL multiplies every order by every customer. Rewrite it correctly.\n\n```sql\nSELECT orders.id, customers.name\nFROM orders, customers;\n```",
+    "expected_answer": "SELECT orders.id, customers.name\nFROM orders\nJOIN customers ON orders.customer_id = customers.id;"
+  },
+  {
+    "id": "v3_debug_009",
+    "category": "code_debugging",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "review_comment",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "When executed, the small Python program below trips its own assertion. Review it and point out what is actually wrong.\n\n```python\ndef half(n):\n    return n // 2\n\n# Test\nassert half(12) == 5\n```",
+    "expected_answer": "The function is correct. The test should expect 6 instead of 5."
+  },
+  {
+    "id": "v3_debug_010",
+    "category": "code_debugging",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "cpp",
+    "prompt": "This C++ function should report whether a vector contains a target value, but it only ever inspects the first element. Correct it.\n\n```cpp\nbool contains(const std::vector<int>& v, int target) {\n  for (size_t i = 0; i < v.size(); i++) {\n    if (v[i] == target) return true;\n    else return false;\n  }\n  return false;\n}\n```",
+    "expected_answer": "bool contains(const std::vector<int>& v, int target) {\n    for (size_t i = 0; i < v.size(); i++) {\n        if (v[i] == target) return true;\n    }\n    return false;\n}"
+  },
+
+  {
+    "id": "v3_logic_001",
+    "category": "logic_puzzles",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Each whale is a mammal. Bruno is a whale. Is Bruno a mammal? Reply Yes or No.",
+    "expected_answer": {"answer": "Yes", "valid": true}
+  },
+  {
+    "id": "v3_logic_002",
+    "category": "logic_puzzles",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "If yesterday was Sunday, which day of the week comes three days after today?",
+    "expected_answer": {"answer": "Thursday", "valid": true}
+  },
+  {
+    "id": "v3_logic_003",
+    "category": "logic_puzzles",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Every marathoner trains daily. A few of the people who train daily also coach. Does it follow that at least one marathoner coaches? Reply Yes or No.",
+    "expected_answer": {"answer": "No", "valid": true}
+  },
+  {
+    "id": "v3_logic_004",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Zoe is senior to Yara at the firm, and Yara is senior to Xan. Who is the most junior of the three?",
+    "expected_answer": {"answer": "Xan", "valid": true}
+  },
+  {
+    "id": "v3_logic_005",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Three cars — a sedan, a truck, and a coupe — occupy parking spots A, B, and C, one car per spot. The truck is not in spot A. The coupe is in spot C. Which spot holds the sedan?",
+    "expected_answer": {"answer": "Spot A", "valid": true}
+  },
+  {
+    "id": "v3_logic_006",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Four passengers — Kofi, Lena, Marco, and Nina — board a shuttle one at a time. Marco boards immediately after Lena. Nina boards first. Kofi does not board last. Who boards last?",
+    "expected_answer": {"answer": "Marco", "valid": true}
+  },
+  {
+    "id": "v3_logic_007",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Four books — an atlas, a biography, a cookbook, and a diary — fill a row of slots numbered 1 through 4. The biography is in slot 1. The diary is not in an end slot. The cookbook is immediately to the right of the atlas. Which book is in slot 4?",
+    "expected_answer": {"answer": "Cookbook", "valid": true}
+  },
+  {
+    "id": "v3_logic_008",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Deb, Eli, and Fay each teach exactly one different subject: art, biology, or chemistry. The biology teacher is not Eli. Deb does not teach art. Fay teaches chemistry. Who teaches biology?",
+    "expected_answer": {"answer": "Deb", "valid": true}
+  },
+  {
+    "id": "v3_logic_009",
+    "category": "logic_puzzles",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Kim finished the exam before Lee; Lee finished before Mo; and Mo finished before Kim. Could all three of those reports be accurate at the same time? Reply Yes or No.",
+    "expected_answer": {"answer": "No", "valid": false}
+  },
+  {
+    "id": "v3_logic_010",
+    "category": "logic_puzzles",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Two ferries must share a single dock that only one vessel can occupy at a time. If we do not know how long each ferry takes to load, can the minimum total docking time be worked out?",
+    "expected_answer": {"answer": null, "valid": false}
+  },
+
+  {
+    "id": "v3_gen_001",
+    "category": "code_generation",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I need a Python function `flatten(list_of_lists)` that joins one level of nested lists into a single flat list, preserving order.",
+    "expected_answer": "def flatten(list_of_lists):\n    return [x for sub in list_of_lists for x in sub]"
+  },
+  {
+    "id": "v3_gen_002",
+    "category": "code_generation",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Please give me a Python function `is_leap_year(year)` that returns True for leap years: divisible by 4, except century years, which must be divisible by 400.",
+    "expected_answer": "def is_leap_year(year):\n    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)"
+  },
+  {
+    "id": "v3_gen_003",
+    "category": "code_generation",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "query_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I need a SQL query selecting all columns from a table named `flights` where the `status` column equals 'Delayed'.",
+    "expected_answer": "SELECT * FROM flights WHERE status = 'Delayed';"
+  },
+  {
+    "id": "v3_gen_004",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `word_lengths(sentence)` that returns a list with the length of each whitespace-separated word; an empty string gives an empty list.",
+    "expected_answer": "def word_lengths(sentence):\n    return [len(w) for w in sentence.split()]"
+  },
+  {
+    "id": "v3_gen_005",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I need a Python function `sum_of_squares(n)` returning 1² + 2² + ... + n² for a positive integer n.",
+    "expected_answer": "def sum_of_squares(n):\n    return sum(i * i for i in range(1, n + 1))"
+  },
+  {
+    "id": "v3_gen_006",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Create a JavaScript function `range(n)` that returns an array of the integers 0 through n-1; range(0) should give an empty array.",
+    "expected_answer": "function range(n) {\n  return Array.from({ length: n }, (_, i) => i);\n}"
+  },
+  {
+    "id": "v3_gen_007",
+    "category": "code_generation",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `most_common(items)` that returns the element occurring most often in a list, breaking ties in favor of the element that appears first; return None for an empty list.",
+    "expected_answer": "def most_common(items):\n    best = None\n    best_count = 0\n    for item in items:\n        c = items.count(item)\n        if c > best_count:\n            best = item\n            best_count = c\n    return best"
+  },
+  {
+    "id": "v3_gen_008",
+    "category": "code_generation",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "schema_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Design a SQL table `invoices` with columns: `invoice_id` (primary key), `vendor_id` (foreign key referencing vendors(id)), `issued_on` (date), and `amount_due` (decimal). Provide the CREATE TABLE statement.",
+    "expected_answer": "CREATE TABLE invoices (\n    invoice_id INT PRIMARY KEY,\n    vendor_id INT,\n    issued_on DATE,\n    amount_due DECIMAL(10, 2),\n    FOREIGN KEY (vendor_id) REFERENCES vendors(id)\n);"
+  },
+  {
+    "id": "v3_gen_009",
+    "category": "code_generation",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Provide a Java method `reverseString(String s)` that returns the reversed string without using StringBuilder or StringBuffer.",
+    "expected_answer": "public String reverseString(String s) {\n    char[] c = s.toCharArray();\n    int i = 0, j = c.length - 1;\n    while (i < j) {\n        char t = c[i];\n        c[i] = c[j];\n        c[j] = t;\n        i++;\n        j--;\n    }\n    return new String(c);\n}"
+  },
+  {
+    "id": "v3_gen_010",
+    "category": "code_generation",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "In C, I need a function `size_t str_length(const char *s)` that counts the characters before the terminating null byte, without calling any library functions.",
+    "expected_answer": "#include <stddef.h>\n\nsize_t str_length(const char *s) {\n    size_t n = 0;\n    while (s[n] != '\\0') {\n        n++;\n    }\n    return n;\n}"
+  }
+]

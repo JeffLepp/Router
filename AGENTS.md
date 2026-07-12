@@ -1,42 +1,57 @@
 # AGENTS.md
 
-Purpose: give coding agents the smallest useful map of this repo and the hard Track 1 rules. Keep changes scoped, prove them locally first, and do not spend Fireworks tokens until mock/local checks pass.
+Purpose: give coding agents the smallest current map of the AMD Track 1 router.
+The accuracy gate is passed; optimize tokens conservatively and never revive an
+old recovery plan without new evidence.
 
-## Mission
+## Mission and current phase
 
-Track 1: Hybrid Token-Efficient Routing Agent for AMD Developer Hackathon ACT II.
+Build a hybrid router that answers the fixed task set accurately while minimizing
+Fireworks tokens.
 
-The agent answers a fixed task set while minimizing Fireworks tokens. Passing the accuracy gate comes first; token efficiency only matters after the answer quality threshold is met.
+Current official state, reported 2026-07-11:
 
-For each remote task, choose the cheapest model from runtime `ALLOWED_MODELS` that can still answer accurately. Deterministic/local answers cost zero Fireworks tokens.
+- Accuracy: **89.5%** (approximately 17/19 tasks).
+- Placement: **67th**.
+- Phase: token optimization with an accuracy floor above 80%.
+- Frozen image: `jeffklin303/amd-router:accuracy-first-20260711`.
+- Digest: `sha256:fafd46eef741e6ef1660c05084a1893807572c50b650b85399266d04e82bc0bf`.
 
-Current default strategy is Floor-C:
+On 19 tasks, one extra miss gives 84.2% and two extra misses give 78.9%.
+Treat the accuracy budget as one task, not as a comfortable ten-point margin.
 
-1. Classify task.
-2. Try deterministic proof solver.
-3. Route only unresolved tasks to Fireworks through the judging proxy.
+## Current runtime
 
-Floor-CL adds a local llama.cpp candidate tier, but it is disabled by default because local startup under the expected 2 vCPU / 4GB style environment is not yet proven inside the readiness window.
+1. Read and deduplicate `/input/tasks.json`.
+2. Classify all tasks in one batched Fireworks call into eight categories.
+3. Run the strict deterministic proof gate; accept only proven answers.
+4. Route unresolved tasks through the judging proxy:
+   - Minimax primary: factual QA, math, sentiment.
+   - Kimi primary: summarization, NER, debugging, logic, code generation.
+   - Other allowed families are transport fallbacks, not unvalidated primaries.
+5. Apply the category contract and conservative output normalization.
+6. Atomically write `/output/results.json`.
 
-## Non-Negotiable Requirements
+The classifier scored 160/160 on variants2 + variants3. Do not spend the
+accuracy budget replacing it unless the candidate reproduces that result.
 
-- Container image must be public, pullable, linux/amd64, and under 10GB compressed.
-- On startup read `/input/tasks.json`.
-- Before exit write valid JSON to `/output/results.json`.
-- Input rows look like `{"task_id":"t1","prompt":"..."}`.
-- Output rows must look like `{"task_id":"t1","answer":"..."}`.
-- Runtime env comes from the harness: `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, `ALLOWED_MODELS`.
-- Never hardcode or bundle keys, base URLs, `.env` files, or model IDs.
-- Every Fireworks call must go through `FIREWORKS_BASE_URL`.
-- Only models in `ALLOWED_MODELS` may be used.
-- Finish within 10 minutes; startup/readiness target is under 60 seconds; remote calls should stay under 30 seconds.
-- Exit 0 on success; use nonzero only for true process failure.
-- Local model inference is allowed and costs zero Fireworks tokens, but local answers must be verified or safely gated.
-- Do not hardcode or cache benchmark answers; hidden prompt variants are used.
+## Non-negotiable requirements
+
+- Public, pullable `linux/amd64` image under 10 GB compressed.
+- Read `/input/tasks.json`; write valid `/output/results.json` before exit.
+- Input: `{"task_id":"t1","prompt":"..."}`.
+- Output: `{"task_id":"t1","answer":"..."}`.
+- Runtime env is supplied by the harness: `FIREWORKS_API_KEY`,
+  `FIREWORKS_BASE_URL`, and `ALLOWED_MODELS`.
+- Never bundle keys, `.env` files, base URLs, or fixed provider model IDs.
+- Every Fireworks request must use `FIREWORKS_BASE_URL` and a model present in
+  runtime `ALLOWED_MODELS`.
+- Finish within 10 minutes; startup target is under 60 seconds.
+- Exit 0 on success; nonzero is for true process failure only.
+- Do not hardcode or cache benchmark answers; hidden variants are used.
 - Responses must be English.
-- Submissions are rate limited to 10 per hour per team.
-- lablab.ai submission also needs title, short/long description, tags, cover image, video, slides, public GitHub repo, demo platform, and application URL.
-- Deadline is whatever the lablab.ai Event Schedule tab shows in the participant's local timezone.
+- Local inference is allowed, but candidates must be calibrated and safely gated.
+- Submission attempts are rate limited to 10 per hour per team.
 
 Task categories:
 
@@ -49,93 +64,63 @@ Task categories:
 7. `logic_puzzles`
 8. `code_generation`
 
-## Repo Map
+## Repo map
 
-Root files:
+Core runtime:
 
-- `Dockerfile`: builds the submission image. Current path is CPU-safe; do not require Vulkan/GPU for final.
-- `docker/entrypoint.sh`: starts optional local server only when enabled, then runs the agent.
-- `agent/config.yaml`: runtime knobs: remote policy, local tier, batching, token caps, timeouts.
-- `dataset.json`: local public/dev task set only. Do not hardcode its answers.
-- `requirements.txt`: small Python dependency set.
-- `README.md`: public setup and usage.
-- `FABLE5_TODO.md`: lean next-step plan for accuracy recovery.
+- `agent/main.py`: orchestration, deadlines, snapshots, and I/O.
+- `agent/classify.py`: local rules plus remote classifier prompt/parser.
+- `agent/gate.py`: conservative zero-token proof dispatch.
+- `agent/contracts.py`: category prompts, caps, and answer assembly.
+- `agent/remote.py`: allowed-model routing, retries, and token ledger.
+- `agent/batcher.py`: experimental same-category answer batching; default off.
+- `agent/local_llm.py`, `agent/local_gate.py`: optional local candidate path; default off.
+- `agent/solvers/`: deterministic proof solvers.
+- `agent/verify/`: math, logic, format, and code verification.
+- `agent/config.yaml`: frozen accuracy-first defaults.
+- `agent/config.efficiency.yaml`: experimental token-saving profile; never promote wholesale.
 
-Core agent:
+Evaluation and release:
 
-- `agent/main.py`: orchestrator, input/output contract, atomic snapshots, classification, gate, local tier, remote calls.
-- `agent/classify.py`: maps prompts into the 8 canonical categories. Weak cues need corroboration — `how many/much` only routes math with a second signal (standalone number / math verb / ×÷), keeping factual "how many …" on `actual_qa`.
-- `agent/gate.py`: dispatches deterministic zero-token solvers.
-- `agent/contracts.py`: remote prompt contracts, max-token caps, and final answer assembly.
-- `agent/remote.py`: Fireworks client, `ALLOWED_MODELS` parsing, model routing, token ledger.
-- `agent/batcher.py`: same-category batching helper; currently disabled in config.
-- `agent/local_llm.py`: local llama.cpp client/stub.
-- `agent/local_gate.py`: accept-or-defer gate for local candidates.
-- `agent/self_judge.py`: lightweight self-check helpers.
+- `dataset.json`: restored public/dev set; never copy answers into runtime logic.
+- `eval/devset/variants2.json`, `variants3.json`: primary OOD regression gates.
+- `eval/score.py`: deterministic development scorer; not part of runtime routing.
+- `scripts/classifier_remote_audit.py`: classification-only accuracy audit.
+- `scripts/live_benchmark.py`: mock/live runner and token ledger.
+- `scripts/acceptance_p1.py`: I/O, contract, transport, and routing checks.
+- `scripts/acceptance_p2.py`: deterministic gate precision checks.
+- `scripts/acceptance_p25.py`: optional local-candidate gate checks.
+- `scripts/build_and_size.sh`: build, size, public pull, manifest, and smoke gate.
 
-Deterministic solvers:
+Documentation:
 
-- `agent/solvers/arithmetic.py`: numeric arithmetic.
-- `agent/solvers/wordmath.py`: simple word math.
-- `agent/solvers/sentiment_solve.py`: high-precision sentiment labels.
-- `agent/solvers/ner_solve.py`: safe NER patterns.
-- `agent/solvers/logic_solve.py`: constraint and boolean logic patterns.
-- `agent/solvers/code_solve.py`: safe Python code fixes/generation.
-- `agent/solvers/format_solve.py` and `common.py`: shared formatting helpers.
+- `README.md`: public overview and commands.
+- `SUBMISSION_READY.md`: one-screen teammate handoff and submission state.
+- `ARCHITECTURE_AND_RESULTS.md`: current evidence and experiment roadmap.
+- `improvements.txt`: compact current experiment ledger.
 
-Verification:
+## Token-optimization order
 
-- `agent/verify/math_v.py`: math checks.
-- `agent/verify/logic_v.py`: constraint consistency.
-- `agent/verify/format_v.py`: answer format checks.
-- `agent/verify/code_v.py`: sandboxed inline code verification helpers.
+Work one lever at a time, in this order:
 
-Evaluation and scripts:
+1. Measure token contribution by stage/category; do not optimize estimates.
+2. Replace the remote batch classifier only with a local classifier that remains
+   160/160 on variants2 + variants3 and remotely defers low confidence.
+3. Add per-category reasoning effort; try lower effort on QA, sentiment, NER,
+   and summaries while retaining stronger reasoning for math, logic, and code.
+4. Test answer batching only for one low-coupling category at a time.
+5. Reduce caps only from observed completion percentiles and truncation checks.
+6. Expand deterministic/local answers only at 100% OOD precision.
 
-- `eval/score.py`: deterministic local scorer for non-judge methods.
-- `eval/judge.py`: optional summary judge path.
-- `eval/probe_models.py`: model access probe.
-- `eval/devset/variants.json`: local holdout variants.
-- `scripts/live_benchmark.py`: host/container benchmark runner; use mock before live.
-- `scripts/mock_fireworks.py`: local mock Fireworks server.
-- `scripts/acceptance_p1.py`: core contract checks.
-- `scripts/acceptance_p2.py`: deterministic gate precision/recall checks.
-- `scripts/acceptance_p25.py`: local candidate gate checks.
-- `scripts/build_and_size.sh`: Docker build, image size, and smoke path.
-- `scripts/bench_local.py`: local llama-server smoke benchmark.
-- `scripts/dress_rehearsal.py`: broader mock/rehearsal runner.
+Do not combine these in one experiment. A combined win cannot identify which
+lever caused an accuracy loss on the hidden set.
 
-Ignored/local artifacts:
+## Promotion gate
 
-- `.env.local`: local Fireworks creds only. Never print it and never commit it.
-- `benchmark_runs/`: generated benchmark output; do not commit new runs unless explicitly requested.
-- `.codex/`, `.agents/`: local agent workspace metadata.
-
-## Current Baseline
-
-Latest trusted live run artifact: `benchmark_runs/live-official-accessible-floor-c-full80-final`.
-
-- Accuracy: `46/70 = 65.71%` on scored local methods.
-- Summaries: 10 unscored locally.
-- Fireworks: 42 requests, 7,719 tokens, 0 remote errors.
-- All 24 scored failures were remote-path failures.
-- Main weak spot: remote answer quality/format, not CPU/GPU or local runtime.
-
-Latest mock regression gate (`live_benchmark --mock --score-judge`, Floor-C, both
-runs re-scored with the current scorer): strict/judged `38/80 → 40/80` vs Prompt-0
-baseline, **zero pass→fail flips**, only `sentiment_analysis` moved (3→5), `qa_010`
-now routes `actual_qa`. Mock tokens rose `2,317 → 3,318` (all prompt tokens, from
-the hardened contracts) — confirm real net cost on a live key. Gate/transport/token
-modules byte-identical to HEAD.
-
-Next accuracy work should start with `FABLE5_TODO.md`.
-
-## Validation
-
-Run these before claiming a router change is safe:
+Before claiming a token change is safe:
 
 ```powershell
-python -m py_compile agent\contracts.py agent\remote.py agent\gate.py agent\solvers\sentiment_solve.py scripts\live_benchmark.py
+python -m py_compile agent\classify.py agent\contracts.py agent\main.py agent\remote.py scripts\live_benchmark.py
 python -m eval.score
 python -m scripts.acceptance_p2
 python -m scripts.acceptance_p25
@@ -143,18 +128,22 @@ python -m scripts.acceptance_p1
 python -m scripts.live_benchmark --mock --out-dir .\benchmark_runs\mock-agent-check
 ```
 
-Docker smoke on Windows:
+Then run paired live variants2 and variants3. Promote only when:
 
-```powershell
-& 'C:\Program Files\Git\bin\bash.exe' scripts/build_and_size.sh
-```
+- no new remote errors or missing answers;
+- no unexplained pass-to-fail changes;
+- both judged sets remain at least 90%;
+- token savings are measured, not inferred;
+- one exact configuration variable changed.
 
-Paid/live Fireworks runs require explicit user approval unless the user already asked for a live benchmark in the same turn.
+Keep the known-good Docker tag immutable and publish candidates under new tags.
 
-## Editing Rules
+## Editing rules
 
-- Keep proof solvers conservative: wrong zero-token answers are worse than extra Fireworks calls.
-- Remote changes should preserve `ALLOWED_MODELS` runtime selection.
-- Do not add new frameworks or broad dependencies.
-- Prefer focused fixes plus acceptance tests over broad rewrites.
-- Do not delete or rewrite user secrets, benchmark history, or unrelated work.
+- Preserve runtime `ALLOWED_MODELS` enforcement.
+- Keep proof solvers conservative; a wrong local answer is worse than a remote call.
+- Do not add a large local LLM merely because the image cap is 10 GB. Validate
+  cold start, 4 GB RAM, and accuracy before size.
+- Do not edit or print `.env.local`.
+- Do not delete benchmark history or unrelated user work.
+- Prefer focused changes plus paired evidence over broad rewrites.

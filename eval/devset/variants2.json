@@ -1,0 +1,928 @@
+[
+  {
+    "id": "v2_qa_001",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "My niece is doing a book report and needs to know: which author created the detective Hercule Poirot?",
+    "expected_answer": "Agatha Christie"
+  },
+  {
+    "id": "v2_qa_002",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A trivia card in the game we were playing last night asks for the chemical symbol of gold. What is it?",
+    "expected_answer": "Au"
+  },
+  {
+    "id": "v2_qa_003",
+    "category": "actual_qa",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Of all the planets orbiting our sun, which one is the largest?",
+    "expected_answer": "Jupiter"
+  },
+  {
+    "id": "v2_qa_004",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Between the Pacific Ocean and the Atlantic Ocean, which one is bigger?",
+    "expected_answer": "The Pacific Ocean"
+  },
+  {
+    "id": "v2_qa_005",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which university opened its doors earlier, Oxford or Cambridge?",
+    "expected_answer": "Oxford"
+  },
+  {
+    "id": "v2_qa_006",
+    "category": "actual_qa",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Is Mercury or Venus the hotter planet?",
+    "expected_answer": "Venus"
+  },
+  {
+    "id": "v2_qa_007",
+    "category": "actual_qa",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": true,
+    "recommended_tool": "browser",
+    "prompt": "As of mid-2026, what is the name of the president of France?",
+    "expected_answer": "Emmanuel Macron"
+  },
+  {
+    "id": "v2_qa_008",
+    "category": "actual_qa",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "exact_match",
+    "requires_tools": true,
+    "recommended_tool": "browser",
+    "prompt": "Which country hosted the 2024 Summer Olympic Games?",
+    "expected_answer": "France"
+  },
+  {
+    "id": "v2_qa_009",
+    "category": "actual_qa",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "In which year did Sherlock Holmes graduate from Harvard Law School?",
+    "expected_answer": null
+  },
+  {
+    "id": "v2_qa_010",
+    "category": "actual_qa",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What is the middle name of the first person who will be born on Mars?",
+    "expected_answer": null
+  },
+
+  {
+    "id": "v2_math_001",
+    "category": "math_reasoning",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A crate holds 7 rows of 16 bottles. A worker fills 3 full crates. How many bottles is that altogether?",
+    "expected_answer": "336"
+  },
+  {
+    "id": "v2_math_002",
+    "category": "math_reasoning",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Nina had 45 stickers, gave 17 to her brother, and later found 8 more in a drawer. How many stickers does she have now?",
+    "expected_answer": "36"
+  },
+  {
+    "id": "v2_math_003",
+    "category": "math_reasoning",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What is 7 raised to the third power?",
+    "expected_answer": "343"
+  },
+  {
+    "id": "v2_math_004",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A cyclist keeps a steady 14 km/h for 2.5 hours. How many kilometers does she cover?",
+    "expected_answer": "35"
+  },
+  {
+    "id": "v2_math_005",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Adult tickets are $18 and child tickets are $9. The Reyes family buys 2 adult tickets and 3 child tickets. How many dollars do they pay altogether?",
+    "expected_answer": "63"
+  },
+  {
+    "id": "v2_math_006",
+    "category": "math_reasoning",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "numeric_exact_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A garden bed measures 9 meters by 6 meters. How many square meters does it cover?",
+    "expected_answer": "54"
+  },
+  {
+    "id": "v2_math_007",
+    "category": "math_reasoning",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unordered_numeric_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Give every real value of x satisfying x² − 9x + 20 = 0.",
+    "expected_answer": "[4, 5]"
+  },
+  {
+    "id": "v2_math_008",
+    "category": "math_reasoning",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "numeric_tolerance",
+    "requires_tools": true,
+    "recommended_tool": "calculator",
+    "prompt": "A drawer holds 4 black socks and 6 white socks. You pull out two socks one after the other without putting the first back. What is the probability that both socks are white?",
+    "expected_answer": "1/3"
+  },
+  {
+    "id": "v2_math_009",
+    "category": "math_reasoning",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which real number is the square root of -25?",
+    "expected_answer": null
+  },
+  {
+    "id": "v2_math_010",
+    "category": "math_reasoning",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "A rectangle has a perimeter of 10 cm and an area of 30 square cm. What is its length in cm?",
+    "expected_answer": null
+  },
+
+  {
+    "id": "v2_sentiment_001",
+    "category": "sentiment_analysis",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "This cookbook earned a permanent spot on my counter; every recipe I have tried came out right on the first attempt.",
+    "expected_answer": {"sentiment": "positive", "confidence": 0.95}
+  },
+  {
+    "id": "v2_sentiment_002",
+    "category": "sentiment_analysis",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The umbrella flipped inside out in the first light breeze, and the handle snapped clean off a day later.",
+    "expected_answer": {"sentiment": "negative", "confidence": 0.95}
+  },
+  {
+    "id": "v2_sentiment_003",
+    "category": "sentiment_analysis",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Absolutely delighted with this mattress — my back pain vanished within a week of switching.",
+    "expected_answer": {"sentiment": "positive", "confidence": 0.90}
+  },
+  {
+    "id": "v2_sentiment_004",
+    "category": "sentiment_analysis",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "aspect_based_classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The hotel room offered a stunning view of the harbor, yet the mattress felt like a slab of concrete.",
+    "expected_answer": {"sentiment": "mixed", "aspects": {"view": "positive", "mattress": "negative"}}
+  },
+  {
+    "id": "v2_sentiment_005",
+    "category": "sentiment_analysis",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "aspect_based_classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The staff were charming, but the pasta arrived cold and bland.",
+    "expected_answer": {"sentiment": "mixed", "aspects": {"staff": "positive", "pasta": "negative"}}
+  },
+  {
+    "id": "v2_sentiment_006",
+    "category": "sentiment_analysis",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "aspect_based_classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The battery easily lasts two full days, though the screen is nearly unreadable in sunlight.",
+    "expected_answer": {"sentiment": "mixed", "aspects": {"battery": "positive", "screen": "negative"}}
+  },
+  {
+    "id": "v2_sentiment_007",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Five stars to the airline for losing my suitcase on a nonstop flight — truly impressive work.",
+    "expected_answer": {"sentiment": "negative", "confidence": 0.8}
+  },
+  {
+    "id": "v2_sentiment_008",
+    "category": "sentiment_analysis",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What a bargain: the subscription price doubled and half the features moved behind yet another paywall.",
+    "expected_answer": {"sentiment": "negative", "confidence": 0.8}
+  },
+  {
+    "id": "v2_sentiment_009",
+    "category": "sentiment_analysis",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The instruction manual is printed in twelve languages.",
+    "expected_answer": {"sentiment": "neutral", "confidence": 0.5}
+  },
+  {
+    "id": "v2_sentiment_010",
+    "category": "sentiment_analysis",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "classification",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "My order shipped from a warehouse in Ohio and arrived within the stated delivery window.",
+    "expected_answer": {"sentiment": "neutral", "confidence": 0.5}
+  },
+
+  {
+    "id": "v2_summary_001",
+    "category": "summarization",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Boil the following passage down to a single sentence:\n\n'Geothermal power stations tap heat stored deep underground. Wells drilled into hot rock bring steam or hot water to the surface, where it spins turbines connected to generators. Because the underlying heat source is continuously replenished by the planet's interior, geothermal plants can run day and night regardless of weather, unlike solar or wind farms. Iceland and New Zealand meet a sizable share of their electricity demand this way. The main drawbacks are high upfront drilling costs and the fact that suitable sites are concentrated in volcanically active regions.'",
+    "expected_answer": {"summary": "Geothermal power stations use underground heat to drive turbines, providing constant weather-independent electricity, though drilling is expensive and good sites are limited to volcanically active regions."}
+  },
+  {
+    "id": "v2_summary_002",
+    "category": "summarization",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Give me the gist of this paragraph in one line:\n\n'Honeybees do far more than produce honey. As they forage, pollen clings to their bodies and transfers between blossoms, fertilizing crops from almonds to apples. Agricultural economists estimate that a third of the food eaten worldwide depends on this pollination service. In recent decades, hives have suffered steep losses driven by parasitic mites, pesticide exposure, and shrinking wildflower habitat. Farmers in some regions now rent traveling hives during bloom season to guarantee their harvests, and researchers are breeding mite-resistant bee strains to stabilize populations.'",
+    "expected_answer": {"summary": "Honeybees pollinate a large share of the world's food crops, but hives are declining from mites, pesticides, and habitat loss, prompting hive rentals and breeding of resistant strains."}
+  },
+  {
+    "id": "v2_summary_003",
+    "category": "summarization",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "In a sentence or two, tell me what this article says:\n\n'The riverside district unveiled its refurbished central library on Saturday after eighteen months of construction. The renovation doubled the children's wing, added forty public computers, and installed rooftop solar panels expected to cover most of the building's electricity use. Funding came from a municipal bond approved by voters three years ago, supplemented by a private donation from a local foundation. Library officials said weekend attendance during the reopening festivities exceeded five thousand visitors, the highest in the branch's history.'",
+    "expected_answer": {"summary": "The riverside district reopened its renovated central library, which now has a larger children's wing, forty public computers, and rooftop solar, funded by a voter-approved bond and a private donation, and drew record reopening crowds."}
+  },
+  {
+    "id": "v2_summary_004",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Recap this stand-up in five bullet points and note every follow-up task:\n\n'At Thursday's stand-up, the platform team walked through the outage postmortem. Wei explained that a memory leak in the caching service caused the Saturday downtime and said a patch is already in staging. Dana reported that error alerts now page the on-call engineer within two minutes. Jonas asked for a load test before the patch ships to production. Priya joined late from the airport and had no updates. Follow-up tasks: Wei will deploy the caching patch by Friday, Dana will document the new alerting thresholds, and Jonas will schedule the load test for next Wednesday.'",
+    "expected_answer": {
+      "summary": [
+        "The platform team walked through the postmortem of Saturday's outage.",
+        "Wei traced the downtime to a memory leak in the caching service and has a patch in staging.",
+        "Dana reported that error alerts now page the on-call engineer within two minutes.",
+        "Jonas asked for a load test before the patch ships to production.",
+        "Follow-up tasks were assigned to the team."
+      ],
+      "action_items": [
+        "Wei to deploy the caching patch by Friday.",
+        "Dana to document the new alerting thresholds.",
+        "Jonas to schedule the load test for next Wednesday."
+      ]
+    }
+  },
+  {
+    "id": "v2_summary_005",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Turn this meeting record into five short bullets plus a list of assigned tasks:\n\n'During the regional sales sync, Amara announced that the northeast territory beat its quarterly target by 9%. Diego flagged that two enterprise renewals are stalled in legal review. Fatima presented a pilot pricing tier aimed at mid-market customers, which the group agreed to test in two regions. Amara cautioned that travel budgets stay frozen through Q3. Assigned tasks: Diego will escalate the stalled contracts to the legal director, Fatima will draft terms for the pilot tier by the 20th, and Amara will circulate updated quota sheets.'",
+    "expected_answer": {
+      "summary": [
+        "The regional sales team held its quarterly sync.",
+        "Amara announced the northeast territory beat its quarterly target by 9%.",
+        "Diego flagged two enterprise renewals stalled in legal review.",
+        "Fatima presented a mid-market pilot pricing tier that will be tested in two regions.",
+        "Amara cautioned that travel budgets remain frozen through Q3."
+      ],
+      "action_items": [
+        "Diego to escalate the stalled contracts to the legal director.",
+        "Fatima to draft terms for the pilot tier by the 20th.",
+        "Amara to circulate updated quota sheets."
+      ]
+    }
+  },
+  {
+    "id": "v2_summary_006",
+    "category": "summarization",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "contains_essential_points",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Compress the following minutes into five bullets and pull out each action item:\n\n'The clinic operations meeting opened with Dr. Okafor reporting that average patient wait times fell to 22 minutes after the new triage system launched. Nurse Patel noted that the flu-shot stock will run out within two weeks at current demand. Administrator Reyes said the parking-lot expansion is delayed until the county approves permits. The group agreed to extend Saturday hours through the winter. Action items: Patel will place a rush vaccine order, Reyes will follow up with the county permit office, and Dr. Okafor will present triage metrics at the board review.'",
+    "expected_answer": {
+      "summary": [
+        "Dr. Okafor reported average patient wait times fell to 22 minutes after the new triage system launched.",
+        "Nurse Patel warned the flu-shot stock will run out within two weeks at current demand.",
+        "Administrator Reyes said the parking-lot expansion is delayed pending county permits.",
+        "The group agreed to extend Saturday hours through the winter.",
+        "Action items were assigned to the staff."
+      ],
+      "action_items": [
+        "Patel to place a rush vaccine order.",
+        "Reyes to follow up with the county permit office.",
+        "Dr. Okafor to present triage metrics at the board review."
+      ]
+    }
+  },
+  {
+    "id": "v2_summary_007",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a three-sentence overview of this report for a busy executive:\n\n'The 2026 Global Aquaculture Outlook tracks farmed seafood production across forty countries. Farmed salmon output rose 11% in 2025 as recirculating land-based tanks matured, cutting disease losses. Shrimp farming contracted by 6% after disease outbreaks in Southeast Asia and higher feed prices squeezed margins. Seaweed cultivation expanded 30%, driven by demand for food ingredients, packaging, and animal feed. Vietnam, Norway, and Ecuador accounted for over half of new investment. The authors conclude that feed innovation and disease control, rather than new licenses, will determine whether growth continues through the decade.'",
+    "expected_answer": {"summary": "The 2026 Global Aquaculture Outlook reports 11% growth in farmed salmon aided by land-based tanks, a 6% contraction in shrimp due to disease and feed costs, and 30% expansion in seaweed cultivation. Vietnam, Norway, and Ecuador drew most new investment. The authors argue future growth depends on feed innovation and disease control rather than new licenses."}
+  },
+  {
+    "id": "v2_summary_008",
+    "category": "summarization",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "In exactly three sentences, brief me on this study:\n\n'The Rural Connectivity and Learning Study 2025 surveyed 12,000 students across six countries to measure how satellite internet access changed education outcomes. Test scores in mathematics rose 14% on average within two years of connection, with the largest gains among students who previously traveled more than an hour to reach a library. Teacher retention in connected villages improved by 9%, which the authors attribute to easier access to training and lesson materials. However, the study found that a quarter of connected schools still lacked reliable electricity, capping the benefit. The report urges governments to pair connectivity programs with basic power infrastructure.'",
+    "expected_answer": {"summary": "The Rural Connectivity and Learning Study 2025 found that satellite internet raised rural math scores by 14% and improved teacher retention by 9% across six countries. Students who previously lived farthest from libraries gained the most. Because a quarter of connected schools lack reliable electricity, the report urges pairing connectivity with power infrastructure."}
+  },
+  {
+    "id": "v2_summary_009",
+    "category": "summarization",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Recap the passage below, but leave out its final conclusion:\n\n'After a two-year pilot, the transit authority voted to make the downtown fare-free zone permanent. The pilot drew twelve percent more riders on weekdays and cut boarding times because drivers no longer handled cash. Local merchants reported higher foot traffic on shopping streets inside the zone. The program will be funded by a small increase in the commercial parking levy starting next January.'",
+    "expected_answer": {"summary": "During a two-year downtown fare-free pilot, weekday ridership rose twelve percent, boarding sped up because drivers no longer handled cash, and merchants saw more foot traffic; funding will come from a higher commercial parking levy starting in January."}
+  },
+  {
+    "id": "v2_summary_010",
+    "category": "summarization",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "semantic_similarity",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Give a short recap of this news item without stating when it happened:\n\n'On 2 February 2026, the Meridian Observatory confirmed the discovery of a rocky exoplanet orbiting within the habitable zone of a nearby red dwarf star. The planet, catalogued as Meridian-1b, is about forty light-years away and slightly larger than Earth. Follow-up observations will search its atmosphere for water vapor using the observatory's new spectrograph.'",
+    "expected_answer": {"summary": "The Meridian Observatory confirmed a rocky exoplanet slightly larger than Earth, catalogued as Meridian-1b, orbiting in the habitable zone of a red dwarf about forty light-years away, and will search its atmosphere for water vapor with a new spectrograph."}
+  },
+
+  {
+    "id": "v2_ner_001",
+    "category": "named_entity_recognition",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "From the following passage, pull out every person and every place mentioned: 'The awards ceremony ran long into the evening, with speeches from several laureates. After the ceremony in Oslo wrapped up, Malala Yousafzai gave a brief interview in the lobby before catching an early flight home the next morning.'",
+    "expected_answer": {"entities": [{"text": "Oslo", "type": "LOCATION"}, {"text": "Malala Yousafzai", "type": "PERSON"}]}
+  },
+  {
+    "id": "v2_ner_002",
+    "category": "named_entity_recognition",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Note each company and each amount of money in the text below: 'Analysts had expected a modest announcement at the shareholder meeting. Instead, Toyota committed $8 billion to a new battery plant, a figure that stunned rival Honda and sent suppliers scrambling to secure contracts before the end of the quarter.'",
+    "expected_answer": {"entities": [{"text": "Toyota", "type": "ORGANIZATION"}, {"text": "$8 billion", "type": "MONEY"}, {"text": "Honda", "type": "ORGANIZATION"}]}
+  },
+  {
+    "id": "v2_ner_003",
+    "category": "named_entity_recognition",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "'The museum's new exhibit devotes an entire wall to early electrical experiments. Nikola Tesla, born on July 10, 1856, appears in a restored portrait near the entrance, and visitors can page through facsimiles of his notebooks.' Which person and which date are mentioned in that passage?",
+    "expected_answer": {"entities": [{"text": "Nikola Tesla", "type": "PERSON"}, {"text": "July 10, 1856", "type": "DATE"}]}
+  },
+  {
+    "id": "v2_ner_004",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "From the press item below, pick out every person, organization, date, and location: 'Rumors of a partnership had circulated for months without confirmation. Satya Nadella of Microsoft finally met Lisa Su in Santa Clara on March 3, 2025, and AMD confirmed the joint venture a week later. Neither side disclosed financial terms.'",
+    "expected_answer": {"entities": [{"text": "Satya Nadella", "type": "PERSON"}, {"text": "Microsoft", "type": "ORGANIZATION"}, {"text": "Lisa Su", "type": "PERSON"}, {"text": "Santa Clara", "type": "LOCATION"}, {"text": "March 3, 2025", "type": "DATE"}, {"text": "AMD", "type": "ORGANIZATION"}]}
+  },
+  {
+    "id": "v2_ner_005",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Name every location and every event in this text: 'Cycling fans camped overnight along the route to claim good viewing spots. Thousands lined the boulevards when the Tour de France rolled through Brussels before the peloton crossed back into France, and cafés stayed open well past midnight.'",
+    "expected_answer": {"entities": [{"text": "Tour de France", "type": "EVENT"}, {"text": "Brussels", "type": "LOCATION"}, {"text": "France", "type": "LOCATION"}]}
+  },
+  {
+    "id": "v2_ner_006",
+    "category": "named_entity_recognition",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Point out the organizations and the people in the following: 'The earnings call opened with routine guidance updates. Midway through, Nvidia chief executive Jensen Huang described a joint effort with Foxconn to expand server assembly capacity, and analysts immediately began revising their forecasts upward.'",
+    "expected_answer": {"entities": [{"text": "Nvidia", "type": "ORGANIZATION"}, {"text": "Jensen Huang", "type": "PERSON"}, {"text": "Foxconn", "type": "ORGANIZATION"}]}
+  },
+  {
+    "id": "v2_ner_007",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Sort every proper noun in this sentence into PERSON, ORGANIZATION, or LOCATION: 'In a publicity stunt covered by the trade press, Ford presented Harrison Ford with a restored vintage roadster from its Detroit collection.'",
+    "expected_answer": {"entities": [{"text": "Ford", "type": "ORGANIZATION"}, {"text": "Harrison Ford", "type": "PERSON"}, {"text": "Detroit", "type": "LOCATION"}]}
+  },
+  {
+    "id": "v2_ner_008",
+    "category": "named_entity_recognition",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "From this clinic note, capture the patient name, the medication, and the dosage: 'Follow-up visit recorded no new complaints. Patient Omar Haddad was prescribed Lisinopril at 10 mg daily, to be reviewed at the next appointment in six weeks.'",
+    "expected_answer": {"entities": [{"text": "Omar Haddad", "type": "PATIENT"}, {"text": "Lisinopril", "type": "MEDICATION"}, {"text": "10 mg", "type": "DOSAGE"}]}
+  },
+  {
+    "id": "v2_ner_009",
+    "category": "named_entity_recognition",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "What entities are present in this sentence: 'The name Jordan can belong to a country or to a legendary basketball player.'",
+    "expected_answer": {"entities": [{"text": "Jordan", "type": "LOCATION"}, {"text": "Jordan", "type": "PERSON"}]}
+  },
+  {
+    "id": "v2_ner_010",
+    "category": "named_entity_recognition",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "entity_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Which persons or dates occur in the following sentence: 'This particular line of text mentions nobody in particular and no day, month, or year.'",
+    "expected_answer": {"entities": []}
+  },
+
+  {
+    "id": "v2_debug_001",
+    "category": "code_debugging",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "python",
+    "prompt": "This Python function should return the sum of every integer from 1 to n inclusive, but it always comes up short. Repair it.\n\n```python\ndef sum_to(n):\n    total = 0\n    for i in range(1, n):\n        total += i\n    return total\n```",
+    "expected_answer": "def sum_to(n):\n    total = 0\n    for i in range(1, n + 1):\n        total += i\n    return total"
+  },
+  {
+    "id": "v2_debug_002",
+    "category": "code_debugging",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "python",
+    "prompt": "The function below is meant to count the vowels in a word no matter the letter case, but capital vowels slip past it. Correct it.\n\n```python\ndef count_vowels(word):\n    count = 0\n    for ch in word:\n        if ch in \"aeiou\":\n            count += 1\n    return count\n```",
+    "expected_answer": "def count_vowels(word):\n    count = 0\n    for ch in word:\n        if ch.lower() in \"aeiou\":\n            count += 1\n    return count"
+  },
+  {
+    "id": "v2_debug_003",
+    "category": "code_debugging",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "node",
+    "prompt": "This JavaScript function should add up an array of prices, but total([1, 2, 3]) gives \"123\" instead of 6. Fix it.\n\n```javascript\nfunction total(prices) {\n  let sum = \"\";\n  for (const p of prices) {\n    sum += p;\n  }\n  return sum;\n}\n```",
+    "expected_answer": "function total(prices) {\n  let sum = 0;\n  for (const p of prices) {\n    sum += p;\n  }\n  return sum;\n}"
+  },
+  {
+    "id": "v2_debug_004",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "python",
+    "prompt": "Calling the Python function below twice, append_item('a') then append_item('b'), yields ['a', 'b'] on the second call instead of ['b']. Make each call start with a fresh list when no list is passed in.\n\n```python\ndef append_item(item, items=[]):\n    items.append(item)\n    return items\n```",
+    "expected_answer": "def append_item(item, items=None):\n    if items is None:\n        items = []\n    items.append(item)\n    return items"
+  },
+  {
+    "id": "v2_debug_005",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "node",
+    "prompt": "This JavaScript helper should hand back a sorted copy of the array while leaving the original untouched, yet the original ends up reordered too. Fix it.\n\n```javascript\nfunction sortedCopy(arr) {\n  return arr.sort((a, b) => a - b);\n}\n```",
+    "expected_answer": "function sortedCopy(arr) {\n  return [...arr].sort((a, b) => a - b);\n}"
+  },
+  {
+    "id": "v2_debug_006",
+    "category": "code_debugging",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "java",
+    "prompt": "This Java method should report whether the user typed \"yes\", but it returns false even for that exact input. Repair it.\n\n```java\npublic boolean isYes(String input) {\n  return input == \"yes\";\n}\n```",
+    "expected_answer": "public boolean isYes(String input) {\n    return \"yes\".equals(input);\n}"
+  },
+  {
+    "id": "v2_debug_007",
+    "category": "code_debugging",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "python",
+    "prompt": "For odd-length lists this Python function should return the middle value after sorting, but it crashes with a TypeError about list indices. Sort out the problem.\n\n```python\ndef median(values):\n    ordered = sorted(values)\n    mid = len(ordered) / 2\n    return ordered[mid]\n```",
+    "expected_answer": "def median(values):\n    ordered = sorted(values)\n    mid = len(ordered) // 2\n    return ordered[mid]"
+  },
+  {
+    "id": "v2_debug_008",
+    "category": "code_debugging",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "query_validation",
+    "requires_tools": true,
+    "recommended_tool": "sql",
+    "prompt": "This SQL should list departments having more than five employees, but the database engine rejects it. Rewrite it correctly.\n\n```sql\nSELECT department, COUNT(*)\nFROM employees\nGROUP BY department\nWHERE COUNT(*) > 5;\n```",
+    "expected_answer": "SELECT department, COUNT(*)\nFROM employees\nGROUP BY department\nHAVING COUNT(*) > 5;"
+  },
+  {
+    "id": "v2_debug_009",
+    "category": "code_debugging",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "review_comment",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "The little Python program below fails its own test when run. Review it and point out what is actually wrong.\n\n```python\ndef triple(n):\n    return n * 3\n\n# Test\nassert triple(2) == 7\n```",
+    "expected_answer": "The function is correct. The test should expect 6 instead of 7."
+  },
+  {
+    "id": "v2_debug_010",
+    "category": "code_debugging",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": true,
+    "recommended_tool": "cpp",
+    "prompt": "This C++ function should return the largest element of a non-empty vector, but for a vector of all negative numbers it answers 0. Correct it.\n\n```cpp\nint maxValue(const std::vector<int>& v) {\n  int best = 0;\n  for (size_t i = 0; i < v.size(); i++) {\n    if (v[i] > best) best = v[i];\n  }\n  return best;\n}\n```",
+    "expected_answer": "int maxValue(const std::vector<int>& v) {\n    int best = v[0];\n    for (size_t i = 1; i < v.size(); i++) {\n        if (v[i] > best) best = v[i];\n    }\n    return best;\n}"
+  },
+
+  {
+    "id": "v2_logic_001",
+    "category": "logic_puzzles",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Every sparrow is a bird. Chirpy is a sparrow. Does it follow that Chirpy is a bird? Answer Yes or No.",
+    "expected_answer": {"answer": "Yes", "valid": true}
+  },
+  {
+    "id": "v2_logic_002",
+    "category": "logic_puzzles",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "If today is Thursday, name the day of the week it will be two days from now.",
+    "expected_answer": {"answer": "Saturday", "valid": true}
+  },
+  {
+    "id": "v2_logic_003",
+    "category": "logic_puzzles",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Every violinist owns an instrument, and a few instrument owners perform on weekends. Does it follow that at least one violinist performs on weekends? Answer Yes or No.",
+    "expected_answer": {"answer": "No", "valid": true}
+  },
+  {
+    "id": "v2_logic_004",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Three runners finished a race one after another. Mia crossed the line before Noah but after Owen. Who won the race?",
+    "expected_answer": {"answer": "Owen", "valid": true}
+  },
+  {
+    "id": "v2_logic_005",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Three lockers numbered 1 to 3 hold a helmet, a glove, and a bat, one item each. The bat is not in locker 3. The glove is in locker 1. Which locker holds the helmet?",
+    "expected_answer": {"answer": "Locker 3", "valid": true}
+  },
+  {
+    "id": "v2_logic_006",
+    "category": "logic_puzzles",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Four customers — Priya, Quinn, Rosa, and Sam — wait in a single line. Rosa hates waiting. Quinn stands immediately behind Rosa. Sam is at the very front. Priya is not at the back. Who is at the back of the line?",
+    "expected_answer": {"answer": "Quinn", "valid": true}
+  },
+  {
+    "id": "v2_logic_007",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Four plants — a fern, an orchid, a cactus, and a tulip — stand on a shelf in positions 1 through 4 from left to right. The cactus is immediately to the right of the fern. The tulip is not at either end. The orchid is in position 1. Which plant is in position 4?",
+    "expected_answer": {"answer": "Cactus", "valid": true}
+  },
+  {
+    "id": "v2_logic_008",
+    "category": "logic_puzzles",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "constraint_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Ana, Bo, and Cy each hold exactly one different role: pilot, medic, or chef. Ana is not the pilot. The medic is not Bo. Cy is the chef. What is Ana's role?",
+    "expected_answer": {"answer": "Medic", "valid": true}
+  },
+  {
+    "id": "v2_logic_009",
+    "category": "logic_puzzles",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "boolean_logic",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Rex weighs more than Spot; Spot weighs more than Fido; and Fido weighs more than Rex. Can every one of these comparisons hold at once? Answer Yes or No.",
+    "expected_answer": {"answer": "No", "valid": false}
+  },
+  {
+    "id": "v2_logic_010",
+    "category": "logic_puzzles",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unanswerable",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Two hikers must descend a narrow trail at night sharing one headlamp, and the trail only lets one person pass at a time. If we do not know how fast each hiker walks, can the shortest total descent time be determined?",
+    "expected_answer": {"answer": null, "valid": false}
+  },
+
+  {
+    "id": "v2_gen_001",
+    "category": "code_generation",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I need a Python function `unique_sorted(nums)` that returns the distinct values from a list of integers, in ascending order, as a new list.",
+    "expected_answer": "def unique_sorted(nums):\n    return sorted(set(nums))"
+  },
+  {
+    "id": "v2_gen_002",
+    "category": "code_generation",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Please give me a Python function `celsius_to_kelvin(c)` that converts a Celsius temperature to Kelvin by adding 273.15.",
+    "expected_answer": "def celsius_to_kelvin(c):\n    return c + 273.15"
+  },
+  {
+    "id": "v2_gen_003",
+    "category": "code_generation",
+    "difficulty": "easy",
+    "holdout": true,
+    "evaluation_method": "query_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "I need a SQL query that selects all columns from a table named `books` where the `genre` column equals 'Mystery'.",
+    "expected_answer": "SELECT * FROM books WHERE genre = 'Mystery';"
+  },
+  {
+    "id": "v2_gen_004",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `char_frequency(text)` that returns a dictionary mapping each character to how often it appears, treating letters case-insensitively and ignoring spaces.",
+    "expected_answer": "def char_frequency(text):\n    freq = {}\n    for ch in text.lower():\n        if ch != ' ':\n            freq[ch] = freq.get(ch, 0) + 1\n    return freq"
+  },
+  {
+    "id": "v2_gen_005",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `second_largest(nums)` returning the second-largest distinct value in the list, or None when fewer than two distinct values exist.",
+    "expected_answer": "def second_largest(nums):\n    distinct = sorted(set(nums))\n    return distinct[-2] if len(distinct) >= 2 else None"
+  },
+  {
+    "id": "v2_gen_006",
+    "category": "code_generation",
+    "difficulty": "medium",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Create a JavaScript function `titleCase(sentence)` that upper-cases the first letter of every space-separated word and leaves the rest of each word unchanged.",
+    "expected_answer": "function titleCase(sentence) {\n  return sentence.split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');\n}"
+  },
+  {
+    "id": "v2_gen_007",
+    "category": "code_generation",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Write a Python function `rle(s)` that run-length encodes a string so 'aaabb' becomes 'a3b2'; an empty string encodes to an empty string.",
+    "expected_answer": "def rle(s):\n    if not s:\n        return ''\n    out = []\n    cur = s[0]\n    n = 1\n    for ch in s[1:]:\n        if ch == cur:\n            n += 1\n        else:\n            out.append(cur + str(n))\n            cur = ch\n            n = 1\n    out.append(cur + str(n))\n    return ''.join(out)"
+  },
+  {
+    "id": "v2_gen_008",
+    "category": "code_generation",
+    "difficulty": "hard",
+    "holdout": true,
+    "evaluation_method": "schema_match",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Design a SQL table `students` with columns: `student_id` (primary key int), `full_name` (varchar), `enrolled_on` (date), and `gpa` (decimal). Give the CREATE TABLE statement.",
+    "expected_answer": "CREATE TABLE students (\n    student_id INT PRIMARY KEY,\n    full_name VARCHAR(255),\n    enrolled_on DATE,\n    gpa DECIMAL(10, 2)\n);"
+  },
+  {
+    "id": "v2_gen_009",
+    "category": "code_generation",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "Provide a Java method `countDigits(int n)` that returns how many digits n has; treat 0 as having one digit and ignore any minus sign.",
+    "expected_answer": "public int countDigits(int n) {\n    if (n == 0) return 1;\n    n = Math.abs(n);\n    int count = 0;\n    while (n > 0) {\n        count++;\n        n /= 10;\n    }\n    return count;\n}"
+  },
+  {
+    "id": "v2_gen_010",
+    "category": "code_generation",
+    "difficulty": "edge",
+    "holdout": true,
+    "evaluation_method": "unit_tests",
+    "requires_tools": false,
+    "recommended_tool": null,
+    "prompt": "In C, I need a function `int max3(int a, int b, int c)` that returns the largest of the three integers without calling any library functions.",
+    "expected_answer": "int max3(int a, int b, int c) {\n    int m = a;\n    if (b > m) m = b;\n    if (c > m) m = c;\n    return m;\n}"
+  }
+]

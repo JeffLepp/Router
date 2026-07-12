@@ -38,6 +38,29 @@ CODE_TESTS: dict[str, list[str]] = {
     ],
     "gen_007": ["assert merge_sorted_lists([1, 3], [2, 4]) == [1, 2, 3, 4]"],
     "gen_009": ["assert safe_divide(8, 2) == 4", "assert safe_divide(8, 0) is None"],
+    # Phase 2 adversarial variant sets (eval/devset/variants2.json / variants3.json).
+    "v2_debug_001": ["assert sum_to(5) == 15", "assert sum_to(1) == 1"],
+    "v2_debug_002": ["assert count_vowels('Aeon') == 3", "assert count_vowels('SKY') == 0"],
+    "v2_debug_004": ["assert append_item('a') == ['a']", "assert append_item('b') == ['b']"],
+    "v2_debug_007": ["assert median([3, 1, 2]) == 2", "assert median([9, 4, 7, 1, 5]) == 5"],
+    "v2_gen_001": ["assert unique_sorted([3, 1, 3, 2]) == [1, 2, 3]", "assert unique_sorted([]) == []"],
+    "v2_gen_002": ["assert celsius_to_kelvin(0) == 273.15", "assert abs(celsius_to_kelvin(25) - 298.15) < 1e-9"],
+    "v2_gen_004": ["assert char_frequency('Aa b') == {'a': 2, 'b': 1}"],
+    "v2_gen_005": ["assert second_largest([4, 1, 4, 3]) == 3", "assert second_largest([7, 7]) is None"],
+    "v2_gen_007": ["assert rle('aaabb') == 'a3b2'", "assert rle('') == ''", "assert rle('abc') == 'a1b1c1'"],
+    "v3_debug_001": ["assert to_fahrenheit(0) == 32", "assert to_fahrenheit(100) == 212"],
+    "v3_debug_002": ["assert find_negatives([1, -2, 3, -4]) == [-2, -4]", "assert find_negatives([]) == []"],
+    "v3_debug_004": ["assert clamp(5, 1, 10) == 5", "assert clamp(-3, 1, 10) == 1", "assert clamp(99, 1, 10) == 10"],
+    "v3_debug_007": ["assert longest_run([1, 1, 0, 1, 1, 1]) == 3", "assert longest_run([0, 0]) == 0", "assert longest_run([]) == 0"],
+    "v3_gen_001": ["assert flatten([[1, 2], [3]]) == [1, 2, 3]", "assert flatten([]) == []"],
+    "v3_gen_002": ["assert is_leap_year(2024)", "assert not is_leap_year(1900)", "assert is_leap_year(2000)", "assert not is_leap_year(2023)"],
+    "v3_gen_004": ["assert word_lengths('hi there') == [2, 5]", "assert word_lengths('') == []"],
+    "v3_gen_005": ["assert sum_of_squares(3) == 14", "assert sum_of_squares(1) == 1"],
+    "v3_gen_007": [
+        "assert most_common(['a', 'b', 'a']) == 'a'",
+        "assert most_common([1, 2, 2, 1]) == 1",
+        "assert most_common([]) is None",
+    ],
 }
 
 # JS tasks: real node execution (Node is on the scoring host). assert.* throws -> nonzero exit.
@@ -50,12 +73,30 @@ CODE_TESTS_JS: dict[str, list[str]] = {
         "assert.strictEqual(sumArray([1, 2, 3, 4]), 10);",
         "assert.strictEqual(sumArray([]), 0);",
     ],
+    "v2_debug_003": ["assert.strictEqual(total([1, 2, 3]), 6);", "assert.strictEqual(total([]), 0);"],
+    "v2_debug_005": [
+        "const orig = [3, 1, 2];",
+        "assert.deepStrictEqual(sortedCopy(orig), [1, 2, 3]);",
+        "assert.deepStrictEqual(orig, [3, 1, 2]);",
+    ],
+    "v2_gen_006": ["assert.strictEqual(titleCase('hello world'), 'Hello World');"],
+    "v3_debug_003": ["assert.strictEqual(last([5, 6, 7]), 7);"],
+    "v3_debug_005": ["assert.strictEqual(reverseWords('a b c'), 'c b a');"],
+    "v3_gen_006": [
+        "assert.deepStrictEqual(range(3), [0, 1, 2]);",
+        "assert.deepStrictEqual(range(0), []);",
+    ],
 }
 
 # Java/C: no toolchain on the scoring host, so they can't run. In judged mode the eval-only
 # LLM judge (eval/judge.py, own key, never the competition path) rescores them; strict mode
 # leaves them on string-equality (so they read as failures until judged).
-JUDGE_CODE_IDS = {"debug_010", "gen_005", "gen_010"}
+JUDGE_CODE_IDS = {
+    "debug_010", "gen_005", "gen_010",
+    # Phase 2 variant-set Java/C/C++ tasks (no toolchain on the scoring host).
+    "v2_debug_006", "v2_debug_010", "v2_gen_009", "v2_gen_010",
+    "v3_debug_006", "v3_debug_010", "v3_gen_009", "v3_gen_010",
+}
 
 _JUDGE_METHODS = {"semantic_similarity", "contains_essential_points"}
 
@@ -128,14 +169,10 @@ def _sentiment_label(answer: Any) -> str | None:
 
 
 def _entities(answer: Any) -> set[tuple[str, str]]:
+    # Strict: gold-schema JSON only ({"entities":[...]} or a bare entity list). The old
+    # "text|TYPE" line parsing accepted a format only WE emitted — the hidden grader
+    # never saw it, so accepting it locally inflated practice scores (Phase 0).
     obj = _as_obj(answer)
-    if isinstance(obj, str):  # "text|TYPE" lines
-        out = set()
-        for line in obj.splitlines():
-            if "|" in line:
-                text, _, typ = line.partition("|")
-                out.add((text.strip(), typ.strip().upper()))
-        return out
     ents = obj["entities"] if isinstance(obj, dict) else obj
     return {(e["text"].strip(), e["type"].strip().upper()) for e in ents}
 
@@ -255,16 +292,28 @@ def score_task(task: dict, answer: Any, judge: bool = False) -> bool:
     return score_one(answer, task["expected_answer"], task["evaluation_method"], task, judge=judge)
 
 
+_GOLD_BACK_FILES = (
+    "dataset.json",
+    "eval/devset/variants2.json",
+    "eval/devset/variants3.json",
+)
+
+
 def _demo() -> None:
-    tasks = json.loads((ROOT / "dataset.json").read_text(encoding="utf-8"))
-    # 1) feeding each gold expected_answer back must score 100% (proves every scorer accepts gold)
-    gold_pass = sum(score_task(t, t["expected_answer"]) for t in tasks)
-    print(f"gold-back: {gold_pass}/{len(tasks)}")
-    assert gold_pass == len(tasks), "a method scorer rejected its own gold"
-    # 2) a corrupted answer must score 0 for every task
-    corrupt_pass = sum(score_task(t, _corrupt(t["expected_answer"])) for t in tasks)
-    print(f"corrupted: {corrupt_pass}/{len(tasks)} (want 0)")
-    assert corrupt_pass == 0, "a corrupted answer was accepted"
+    import os
+
+    os.environ.setdefault("EVAL_JUDGE_OFFLINE", "1")  # self-check must never spend tokens
+    for rel in _GOLD_BACK_FILES:
+        tasks = json.loads((ROOT / rel).read_text(encoding="utf-8"))
+        # 1) feeding each gold expected_answer back must score 100% (proves every scorer
+        #    accepts gold, and actually RUNS the code golds against their test banks)
+        gold_fail = [t["id"] for t in tasks if not score_task(t, t["expected_answer"])]
+        print(f"{rel}: gold-back {len(tasks) - len(gold_fail)}/{len(tasks)}")
+        assert not gold_fail, f"{rel}: scorer rejected its own gold: {gold_fail}"
+        # 2) a corrupted answer must score 0 for every task
+        corrupt_pass = [t["id"] for t in tasks if score_task(t, _corrupt(t["expected_answer"]))]
+        print(f"{rel}: corrupted {len(corrupt_pass)}/{len(tasks)} (want 0)")
+        assert not corrupt_pass, f"{rel}: corrupted answer accepted: {corrupt_pass}"
     print("PASS eval.score self-check")
 
 

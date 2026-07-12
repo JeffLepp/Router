@@ -44,16 +44,14 @@ batching:
   # and the per-category contract are paid once instead of once per task. Lines that fail
   # validation are re-run individually, so a bad parse costs the un-batched price, not the task.
   enabled: false
-  # Requires repeated paid A/B evidence (zero pass-to-fail and >=145 actual tokens saved).
+  # Requires repeated paid A/B evidence (zero passâ†’fail and >=145 actual tokens saved).
   code_enabled: false
   max_batch_size: 10
 remote:
-  # Accuracy-first: the 19-task judge has ample wall-clock headroom, while code models can
-  # spend 25-45s in hidden reasoning before emitting a complete answer.
-  timeout_seconds: 90
+  timeout_seconds: 45
   retries: 2
   temperature: 0
-  # One direct-model batch classifies the real judge's approximately 19 tasks.
+  # Opt-in experiment only. The control router keeps the local regex classifier.
   classifier_enabled: true
   classifier_batch_size: 20
   classifier_max_tokens: 1024
@@ -67,9 +65,7 @@ max_tokens:
   actual_qa: 1024
   math_reasoning: 512
   sentiment_analysis: 1024
-  # Structured summaries can use most of a 2K completion budget in hidden reasoning and then
-  # truncate an action item; 4K completed the same workload within the runtime envelope.
-  summarization: 4096
+  summarization: 2048
   named_entity_recognition: 4096
   code_debugging: 4096
   logic_puzzles: 1024

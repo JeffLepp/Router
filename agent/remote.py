@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import json
 import os
 import re
@@ -23,24 +24,28 @@ FAMILY_PRIOR = {
     "deepseek": 7,
     "gpt-oss": 8,
 }
-REASONING_RE = re.compile(r"\b(r1|reason|thinking|think|qwq)\b", re.I)
+REASONING_RE = re.compile(r"\b(r1|reason(?:ing)?|thinking|think|qwq|gpt-oss)\b", re.I)
 # Measured on Fireworks 2026-07-09 with a 1-token user message: minimax-m3 bills 119
 # prompt tokens before we send a single word (a provider-side chat template), kimi-k2p7-code
 # bills 24. That ~95-token surcharge is paid on EVERY call, so it dominates short-answer
 # categories. Keep minimax only where world knowledge or nuance actually earns it back:
 #   actual_qa   - kimi answered "unanswerable" for a knowable question (qa_007); minimax knew it.
 #   sentiment   - minimax 4/5 vs kimi 3/5 on the non-gate tasks.
-# Transformation categories (summarize/extract/deduce) read from the prompt, so they take the
-# cheap model. Patterns are an ordered preference; unmatched families fall through to rank_models.
+# The first two preferences are the only families we can exercise through the development
+# proxy. The official judge also advertises Gemma models, but routing to an unmeasured model
+# made the submitted image behave differently from every live gate. Keep Gemma as transport
+# fallback only, after the validated Minimax/Kimi pair.
+#
+# Patterns are an ordered preference; unmatched families fall through to rank_models.
 CATEGORY_MODEL_PATTERNS = {
-    "code_debugging": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "code_generation": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "sentiment_analysis": (r"gemma.*26.*it", r"gemma.*31.*nvfp4", r"minimax"),
-    "math_reasoning": (r"minimax", r"gemma.*31.*it", r"gemma.*26.*it"),
-    "logic_puzzles": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "actual_qa": (r"minimax", r"gemma.*31.*it", r"gemma.*31.*nvfp4"),
-    "summarization": (r"kimi.*code", r"gemma.*31.*it", r"minimax"),
-    "named_entity_recognition": (r"gemma.*31.*it", r"kimi.*code", r"minimax"),
+    "code_debugging": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
+    "code_generation": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
+    "sentiment_analysis": (r"minimax", r"kimi.*code", r"gemma.*26.*it", r"gemma.*31.*it"),
+    "math_reasoning": (r"minimax", r"kimi.*code", r"gemma.*31.*it", r"gemma.*26.*it"),
+    "logic_puzzles": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
+    "actual_qa": (r"minimax", r"kimi.*code", r"gemma.*31.*it"),
+    "summarization": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
+    "named_entity_recognition": (r"kimi.*code", r"minimax", r"gemma.*31.*it"),
 }
 
 
@@ -156,6 +161,26 @@ def choose_model_for_category(category: str, models: list[str]) -> str:
     return choose_default_model(candidates)
 
 
+def choose_accuracy_model(category: str, models: list[str]) -> str:
+    """Prefer reasoning-capable models for tasks where extra compute can change correctness.
+
+    Other categories retain the measured family preferences, but unlike the token-first path
+    they do not discard reasoning models before applying those preferences.
+    """
+    category = canonical_category(category)
+    if not models:
+        raise RuntimeError("ALLOWED_MODELS is empty but remote calls are enabled")
+    if category in {"math_reasoning", "logic_puzzles", "code_debugging", "code_generation"}:
+        reasoning = [model for model in models if REASONING_RE.search(model)]
+        if reasoning:
+            return rank_models(reasoning)[0]
+    for pattern in CATEGORY_MODEL_PATTERNS.get(category, ()):
+        matches = [model for model in models if re.search(pattern, model, re.I)]
+        if matches:
+            return rank_models(matches)[0]
+    return choose_default_model(models)
+
+
 def select_budgeted_calls(calls: list[RemoteCall], budget: int) -> list[RemoteCall]:
     if budget <= 0:
         return []
@@ -181,6 +206,8 @@ class RemoteClient:
         timeout: float = 25.0,
         retries: int = 2,
         temperature: float = 0.0,
+        accuracy_first: bool = False,
+        reasoning_effort: str = "none",
         usd_per_mtok: float = 0.0,
         dev_spend_cap: float = 0.0,
     ) -> None:
@@ -190,13 +217,20 @@ class RemoteClient:
         self.timeout = timeout
         self.retries = retries
         self.temperature = temperature
+        self.accuracy_first = accuracy_first
+        self.reasoning_effort = reasoning_effort
         self.dev_spend_cap = dev_spend_cap
         self.ledger = TokenLedger(usd_per_mtok=usd_per_mtok)
         # Models that rejected `reasoning_effort`; we stop sending it to them.
         self._no_reasoning_param: set[str] = set()
+        self._dead_models: set[str] = set()
         if not self.base_url:
             raise RuntimeError("FIREWORKS_BASE_URL is required when remote calls are enabled")
         choose_default_model(self.models)
+
+    def _usable_models(self) -> list[str]:
+        alive = [model for model in self.models if model not in self._dead_models]
+        return alive or self.models
 
     def _payload(self, model: str, call: RemoteCall) -> dict[str, Any]:
         payload = {
@@ -212,8 +246,8 @@ class RemoteClient:
             "max_tokens": call.max_tokens,
             "stop": ["\n\n\n"],
         }
-        if model not in self._no_reasoning_param:
-            payload["reasoning_effort"] = "none"
+        if self.reasoning_effort and model not in self._no_reasoning_param:
+            payload["reasoning_effort"] = self.reasoning_effort
         return payload
 
     async def complete(self, call: RemoteCall) -> str:
@@ -223,13 +257,18 @@ class RemoteClient:
         if self.dev_spend_cap > 0 and projected > self.dev_spend_cap:
             raise RuntimeError("remote dev spend cap reached")
 
-        model = choose_model_for_category(call.category, self.models)
+        usable = self._usable_models()
+        model = (
+            choose_accuracy_model(call.category, usable)
+            if self.accuracy_first
+            else choose_model_for_category(call.category, usable)
+        )
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         deadline = time.monotonic() + self.timeout
         last_error: BaseException | None = None
-        blank_fallback_used = False
+        quality_fallback_used = False
         for attempt in range(self.retries + 1):
             remaining = max(0.5, deadline - time.monotonic())
             try:
@@ -245,34 +284,109 @@ class RemoteClient:
                 content = _message_content(data).strip()
                 usage = dict(data.get("usage", {}) or {})
                 self.ledger.add(call.task_id, model, usage, call.estimated_tokens)
-                # A blank completion scores zero (reasoning models can burn the
-                # whole budget on hidden reasoning), so spend one retry on the
-                # next-ranked model before returning it.
-                fallback = _other_model(model, self.models)
-                if content or blank_fallback_used or fallback is None or attempt >= self.retries:
+                # A blank or structurally truncated completion scores zero (code models can
+                # burn most of the budget in hidden reasoning), so spend one retry on the
+                # next validated model before returning it.
+                incomplete = _code_payload_incomplete(call, content)
+                fallback = _other_model(
+                    model, self._usable_models(), call.category, self.accuracy_first
+                )
+                if (
+                    (content and not incomplete)
+                    or quality_fallback_used
+                    or fallback is None
+                    or attempt >= self.retries
+                ):
                     return content
-                blank_fallback_used = True
+                quality_fallback_used = True
                 model = fallback
             except BaseException as exc:
                 last_error = exc
-                # ponytail: any HTTP 400 is treated as `reasoning_effort`
-                # rejection; the retry merely drops the param, harmless if the
-                # 400 had another cause.
-                if _param_rejection(exc):
+                if (
+                    self.reasoning_effort
+                    and model not in self._no_reasoning_param
+                    and _param_rejection(exc)
+                ):
                     self._no_reasoning_param.add(model)
+                else:
+                    if _model_unavailable(exc):
+                        self._dead_models.add(model)
+                    alternate = _other_model(
+                        model,
+                        self._usable_models(),
+                        call.category,
+                        self.accuracy_first,
+                    )
+                    if alternate is not None:
+                        model = alternate
                 if attempt >= self.retries:
                     break
                 await asyncio.sleep(min(0.25 * (2**attempt), 1.0))
         raise RuntimeError(f"remote call failed: {last_error}")
 
 
-def _other_model(primary: str, models: list[str]) -> str | None:
-    return next((m for m in rank_models(models) if m != primary), None)
+def _other_model(
+    primary: str,
+    models: list[str],
+    category: str | None = None,
+    accuracy_first: bool = False,
+) -> str | None:
+    remaining = [model for model in models if model != primary]
+    if not remaining:
+        return None
+    if accuracy_first and category is not None:
+        return choose_accuracy_model(category, remaining)
+    return rank_models(remaining)[0]
+
+
+_DIAGNOSIS_REQUEST_RE = re.compile(
+    r"\b(?:review|diagnos(?:e|is)|comment|explain|identify)\b|"
+    r"point out what is actually wrong",
+    re.I,
+)
+
+
+def _code_payload_incomplete(call: RemoteCall, content: str) -> bool:
+    """Catch only high-confidence truncation signals before accepting code output."""
+    if call.category not in {"code_debugging", "code_generation"} or not content.strip():
+        return not content.strip()
+    # A diagnosis can legitimately quote one incomplete line from the source.
+    if call.category == "code_debugging" and _DIAGNOSIS_REQUEST_RE.search(call.prompt):
+        return False
+
+    text = content.strip()
+    if text.startswith("```") and text.count("```") < 2:
+        return True
+    fenced = re.search(r"```[A-Za-z0-9_+#.-]*\s*\n(.*?)```", text, re.S)
+    if fenced:
+        text = fenced.group(1).strip()
+
+    lower_prompt = call.prompt.lower()
+    if "python" in lower_prompt and re.search(r"^(?:async\s+)?def\s+|^class\s+", text, re.M):
+        try:
+            ast.parse(text)
+        except SyntaxError:
+            return True
+    # C-family methods/classes require balanced blocks. This also catches the common
+    # provider failure where output ends halfway through `return true`.
+    if "{" in text and text.count("{") != text.count("}"):
+        return True
+    return False
 
 
 def _param_rejection(exc: BaseException) -> bool:
     text = str(exc)
     return "reasoning_effort" in text or "invalid_request_error" in text or "HTTP 400" in text or "400 Bad Request" in text
+
+
+def _model_unavailable(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return (
+        bool(re.search(r"\b(401|403|404)\b", text))
+        or "model not found" in text
+        or "does not exist" in text
+        or "no access" in text
+    )
 
 
 def _message_content(data: dict[str, Any]) -> str:
@@ -329,8 +443,8 @@ def _self_check() -> None:
     assert choose_model_for_category("code_generation", models) == "kimi-k2p7-code"
     assert choose_model_for_category("code_debugging", models) == "kimi-k2p7-code"
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
-    assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
-    assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
+    assert choose_model_for_category("sentiment_analysis", models) == "minimax-m3"
+    assert choose_model_for_category("named_entity_recognition", models) == "kimi-k2p7-code"
     # Knowledge stays on minimax; transformations take the low-overhead model.
     two = ["minimax-m3", "kimi-k2p7-code"]
     assert choose_model_for_category("actual_qa", two) == "minimax-m3"
@@ -338,6 +452,26 @@ def _self_check() -> None:
     assert choose_model_for_category("summarization", two) == "kimi-k2p7-code"
     assert choose_model_for_category("logic_puzzles", two) == "kimi-k2p7-code"
     assert choose_model_for_category("named_entity_recognition", two) == "kimi-k2p7-code"
+
+    # The judge roster must not silently move primary traffic onto locally untestable Gemmas.
+    official = [
+        "minimax-m3",
+        "kimi-k2p7-code",
+        "gemma-4-31b-it",
+        "gemma-4-26b-a4b-it",
+        "gemma-4-31b-it-nvfp4",
+    ]
+    expected = {
+        "actual_qa": "minimax-m3",
+        "math_reasoning": "minimax-m3",
+        "sentiment_analysis": "minimax-m3",
+        "summarization": "kimi-k2p7-code",
+        "named_entity_recognition": "kimi-k2p7-code",
+        "code_debugging": "kimi-k2p7-code",
+        "logic_puzzles": "kimi-k2p7-code",
+        "code_generation": "kimi-k2p7-code",
+    }
+    assert {name: choose_accuracy_model(name, official) for name in expected} == expected
     assert _param_count("gemma-4-26b-a4b-it") == 4.0
     assert _param_count("gemma-4-31b-it") == 31.0
     assert _param_count("mixtral-8x7b-instruct") == 7.0
@@ -345,6 +479,22 @@ def _self_check() -> None:
     # Active-param awareness ranks the a4b MoE cheapest among unknown families.
     ranked = rank_models(["foo-9b-it", "foo-26b-a4b-it"])
     assert ranked[0] == "foo-26b-a4b-it", ranked
+    java_call = RemoteCall(
+        task_id="code",
+        category="code_generation",
+        prompt="Write a Java method.",
+        max_tokens=128,
+    )
+    assert _code_payload_incomplete(java_call, "public boolean ok() { return t")
+    assert not _code_payload_incomplete(java_call, "public boolean ok() { return true; }")
+    python_call = RemoteCall(
+        task_id="py",
+        category="code_generation",
+        prompt="Write a Python function.",
+        max_tokens=128,
+    )
+    assert _code_payload_incomplete(python_call, "def f(x):\n    return (")
+    assert not _code_payload_incomplete(python_call, "def f(x):\n    return x")
     asyncio.run(_self_check_complete())
 
 
@@ -368,6 +518,29 @@ async def _self_check_complete() -> None:
         assert answer == "4", answer
         assert len(models_called) == 2 and models_called[0] != models_called[1], models_called
 
+        # Structurally truncated code also rotates once instead of shipping a certain zero.
+        code_models: list[str] = []
+
+        async def truncated_then_complete(url, payload, headers, timeout):
+            code_models.append(payload["model"])
+            content = (
+                "public boolean ok() { return t"
+                if len(code_models) == 1
+                else "public boolean ok() { return true; }"
+            )
+            return {"choices": [{"message": {"content": content}}], "usage": {}}
+
+        _post_json = truncated_then_complete
+        code_call = RemoteCall(
+            task_id="code",
+            category="code_generation",
+            prompt="Write a Java method.",
+            max_tokens=128,
+        )
+        answer = await RemoteClient().complete(code_call)
+        assert answer.endswith("true; }"), answer
+        assert len(code_models) == 2 and code_models[0] != code_models[1], code_models
+
         # 2. HTTP 400 on `reasoning_effort` retries without the param.
         efforts_sent: list[bool] = []
 
@@ -381,6 +554,36 @@ async def _self_check_complete() -> None:
         answer = await RemoteClient().complete(call)
         assert answer == "4", answer
         assert efforts_sent == [True, False], efforts_sent
+
+        # 3. A request failure rotates to another model; hard failures are blacklisted.
+        tried: list[str] = []
+
+        async def dead_then_ok(url, payload, headers, timeout):
+            tried.append(payload["model"])
+            if len(tried) == 1:
+                raise RuntimeError('HTTP 404: {"error":"Model not found"}')
+            return {"choices": [{"message": {"content": "4"}}], "usage": {}}
+
+        _post_json = dead_then_ok
+        client = RemoteClient()
+        answer = await client.complete(call)
+        assert answer == "4" and len(tried) == 2 and tried[0] != tried[1], tried
+        assert tried[0] in client._dead_models
+
+        # 4. Transient errors rotate without blacklisting.
+        transient_tried: list[str] = []
+
+        async def transient_then_ok(url, payload, headers, timeout):
+            transient_tried.append(payload["model"])
+            if len(transient_tried) == 1:
+                raise RuntimeError("HTTP 500: upstream overloaded")
+            return {"choices": [{"message": {"content": "4"}}], "usage": {}}
+
+        _post_json = transient_then_ok
+        client = RemoteClient()
+        answer = await client.complete(call)
+        assert answer == "4" and transient_tried[0] != transient_tried[1]
+        assert not client._dead_models
     finally:
         _post_json = real
 

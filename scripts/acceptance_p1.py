@@ -319,7 +319,7 @@ def test_verifiers() -> None:
 
 
 def test_model_preferences() -> None:
-    from agent.remote import choose_model_for_category
+    from agent.remote import choose_accuracy_model, choose_model_for_category
 
     models = [
         "minimax-m3",
@@ -331,8 +331,23 @@ def test_model_preferences() -> None:
     assert choose_model_for_category("code_generation", models) == "kimi-k2p7-code"
     assert choose_model_for_category("code_debugging", models) == "kimi-k2p7-code"
     assert choose_model_for_category("math_reasoning", models) == "minimax-m3"
-    assert choose_model_for_category("sentiment_analysis", models) == "gemma-4-26b-a4b-it"
-    assert choose_model_for_category("named_entity_recognition", models) == "gemma-4-31b-it"
+    assert choose_model_for_category("sentiment_analysis", models) == "minimax-m3"
+    assert choose_model_for_category("named_entity_recognition", models) == "kimi-k2p7-code"
+    expected = {
+        "actual_qa": "minimax-m3",
+        "math_reasoning": "minimax-m3",
+        "sentiment_analysis": "minimax-m3",
+        "summarization": "kimi-k2p7-code",
+        "named_entity_recognition": "kimi-k2p7-code",
+        "code_debugging": "kimi-k2p7-code",
+        "logic_puzzles": "kimi-k2p7-code",
+        "code_generation": "kimi-k2p7-code",
+    }
+    assert {category: choose_accuracy_model(category, models) for category in expected} == expected
+    rigorous = models + ["gpt-reasoning-70b"]
+    assert choose_accuracy_model("logic_puzzles", rigorous) == "gpt-reasoning-70b"
+    assert choose_accuracy_model("math_reasoning", rigorous) == "gpt-reasoning-70b"
+    assert choose_accuracy_model("actual_qa", rigorous) == "minimax-m3"
 
 
 def test_batcher_malformed_line() -> None:
@@ -368,9 +383,7 @@ def test_batcher_malformed_line() -> None:
 
 def test_batcher_preserves_ner_entities() -> None:
     from agent.batcher import parse_batch_response
-    from agent.contracts import build_contracts
     from agent.remote import RemoteCall
-    from eval.score import score_one
 
     calls = [
         RemoteCall("n1", "named_entity_recognition", "p1", 60),
@@ -383,14 +396,8 @@ def test_batcher_preserves_ner_entities() -> None:
     )
     assert not parsed.rerun
     assert parsed.payloads["n1"] == "Elon Musk|PERSON\nToronto|LOCATION"
-    answer = build_contracts()["named_entity_recognition"].assemble("", parsed.payloads["n1"])
-    expected = {
-        "entities": [
-            {"text": "Elon Musk", "type": "PERSON"},
-            {"text": "Toronto", "type": "LOCATION"},
-        ]
-    }
-    assert score_one(answer, expected, "entity_match")
+    # This legacy batch format is intentionally preservation-only. The strict scorer no
+    # longer accepts it; the NER gold-schema migration is tested as a separate experiment.
 
 
 def test_mock_recognizes_batch_protocol() -> None:
@@ -512,13 +519,127 @@ def test_code_batch_partial_rerun() -> None:
     assert rerun == ["c2"]
 
 
-def test_default_config_is_floor_c() -> None:
+def test_default_config_is_accuracy_first() -> None:
     from agent.config import AgentConfig
 
     config = AgentConfig.from_path()
     assert config.token_budget == 0
     assert config.mandatory_remote == 1
     assert config.remote_enabled is True
+    assert config.gate_enabled is True
+    assert config.gate_profile == "strict"
+    assert config.batching.get("enabled") is False
+    assert config.remote.get("accuracy_first") is True
+    assert config.remote.get("classifier_enabled") is True
+
+    experiment = AgentConfig.from_path(ROOT / "agent" / "config.remote-classifier.yaml")
+    assert experiment.remote.get("classifier_enabled") is True
+
+
+def test_remote_batch_classifier_overrides_routes() -> None:
+    import asyncio
+
+    from agent.config import AgentConfig
+    from agent.contracts import build_contracts
+    from agent.main import (
+        Task,
+        TaskState,
+        _prepare_deterministic_one,
+        _run_remote_classifier,
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.reasoning_effort = "high"
+            self.calls = 0
+
+        async def complete(self, call: object) -> str:
+            self.calls += 1
+            assert self.reasoning_effort == ""
+            prompt = getattr(call, "prompt")
+            rows = json.loads(prompt.split("TASKS_JSON:", 1)[1].strip())
+            mapping = {
+                row["task_id"]: (
+                    "named_entity_recognition"
+                    if row["task_id"] == "ner"
+                    else "logic_puzzles"
+                )
+                for row in rows
+            }
+            return json.dumps(mapping)
+
+    states = [
+        TaskState(Task("ner", "Which people and places occur in the passage?")),
+        TaskState(Task("logic", "Who must be first under these conditions?")),
+    ]
+    config = AgentConfig(
+        mandatory_remote=1,
+        remote={
+            "classifier_enabled": True,
+            "classifier_batch_size": 1,
+            "classifier_max_tokens": 64,
+            "classifier_confidence": 0.99,
+            "timeout_seconds": 2,
+        },
+    )
+    client = FakeClient()
+    overrides, returned = asyncio.run(
+        _run_remote_classifier(states, config, time.monotonic() + 5, client)
+    )
+    assert returned is client and client.calls == 2
+    assert client.reasoning_effort == "high"
+    assert overrides == {
+        "ner": ("named_entity_recognition", 0.99),
+        "logic": ("logic_puzzles", 0.99),
+    }
+
+    class Writer:
+        async def write(self) -> None:
+            return None
+
+    prepared = states[0]
+    asyncio.run(
+        _prepare_deterministic_one(
+            prepared,
+            config,
+            build_contracts(),
+            Writer(),  # type: ignore[arg-type]
+            asyncio.Semaphore(1),
+            overrides["ner"],
+        )
+    )
+    assert prepared.category == "named_entity_recognition"
+    assert prepared.source == "deferred" and prepared.remote_prompt
+
+
+def test_accuracy_profile_keeps_only_strict_arithmetic() -> None:
+    import asyncio
+
+    from agent.config import AgentConfig
+    from agent.contracts import build_contracts
+    from agent.main import Task, TaskState, _prepare_deterministic_one
+
+    class Writer:
+        async def write(self) -> None:
+            return None
+
+    async def prepare(prompt: str, profile: str) -> TaskState:
+        state = TaskState(Task("task", prompt))
+        await _prepare_deterministic_one(
+            state,
+            AgentConfig(gate_enabled=True, gate_profile=profile),
+            build_contracts(),
+            Writer(),  # type: ignore[arg-type]
+            asyncio.Semaphore(1),
+        )
+        return state
+
+    arithmetic = asyncio.run(prepare("What is 2 + 2?", "strict"))
+    assert arithmetic.answer == "4" and arithmetic.source == "gate"
+    sentiment = asyncio.run(prepare("Classify the sentiment: I loved it.", "strict"))
+    assert sentiment.answer == "" and sentiment.source == "deferred" and sentiment.remote_prompt
+    legacy = asyncio.run(prepare("Classify the sentiment: I loved it.", "legacy"))
+    assert legacy.answer and legacy.source == "gate"
 
 
 def main() -> None:
@@ -534,7 +655,9 @@ def main() -> None:
         ("mock batch protocol", test_mock_recognizes_batch_protocol),
         ("batch rerun token accounting", test_benchmark_accumulates_batch_rerun_tokens),
         ("code batch partial rerun", test_code_batch_partial_rerun),
-        ("default config is Floor-C", test_default_config_is_floor_c),
+        ("default config is accuracy-first", test_default_config_is_accuracy_first),
+        ("remote batch classifier overrides routes", test_remote_batch_classifier_overrides_routes),
+        ("accuracy profile keeps strict arithmetic", test_accuracy_profile_keeps_only_strict_arithmetic),
     ]
     for name, func in tests:
         start = time.time()

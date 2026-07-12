@@ -43,10 +43,20 @@ SOLVERS: dict[str, Solver] = {
     "code_generation": code_solve.solve,
 }
 
+STRICT_SOLVERS: dict[str, Solver] = {
+    category: (
+        _first(arithmetic.solve_strict, wordmath.solve_strict)
+        if category == "math_reasoning"
+        else _defer
+    )
+    for category in CATEGORIES
+}
 
-def solve(category: str, prompt: str) -> str | None:
+
+def solve(category: str, prompt: str, profile: str = "legacy") -> str | None:
     """Return a mechanically proven answer, or None to escalate."""
-    solver = SOLVERS.get(canonical_category(category), _defer)
+    solvers = STRICT_SOLVERS if profile == "strict" else SOLVERS
+    solver = solvers.get(canonical_category(category), _defer)
     return solver(prompt)
 
 
@@ -55,7 +65,11 @@ def _self_check() -> None:
     assert solve("math", "What is 2 + 2?") == "4"
     assert solve("sentiment_analysis", "I absolutely loved it.") is not None
     assert solve("summarization", "Summarize this paragraph.") is None
+    assert solve("math_reasoning", "What is 2 + 2?", profile="strict") == "4"
+    assert solve("sentiment_analysis", "I absolutely loved it.", profile="strict") is None
+    assert solve("logic_puzzles", "If today is Tuesday, what day is it in 3 days?", profile="strict") is None
     assert set(SOLVERS) == set(CATEGORIES)
+    assert set(STRICT_SOLVERS) == set(CATEGORIES)
 
 
 if __name__ == "__main__":

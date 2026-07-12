@@ -68,6 +68,8 @@ def load_yaml(path: Path) -> dict[str, Any]:
 class AgentConfig:
     token_budget: int = 0
     mandatory_remote: int = 1
+    gate_enabled: bool = True
+    gate_profile: str = "legacy"
     local_slots: int = 4
     remote_slots: int = 8
     wall_seconds: float = 510.0
@@ -85,6 +87,8 @@ class AgentConfig:
         return cls(
             token_budget=int(data.get("token_budget", 0) or 0),
             mandatory_remote=int(data.get("mandatory_remote", 1)),
+            gate_enabled=bool(data.get("gate_enabled", True)),
+            gate_profile=str(data.get("gate_profile", "legacy") or "legacy"),
             local_slots=int(data.get("local_slots", 4) or 4),
             remote_slots=int(data.get("remote_slots", 8) or 8),
             wall_seconds=float(data.get("wall_seconds", 510) or 510),

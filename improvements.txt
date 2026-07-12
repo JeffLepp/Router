@@ -1,0 +1,83 @@
+AMD Track 1 router - current experiment ledger
+Updated: 2026-07-11
+
+CURRENT OFFICIAL BASELINE
+=========================
+Accuracy: 89.5% (approximately 17/19)
+Placement: 67th
+Phase: lower Fireworks tokens while staying above 80%
+Accuracy budget: one additional miss (16/19 = 84.2%; 15/19 = 78.9%)
+Frozen image: jeffklin303/amd-router:accuracy-first-20260711
+Digest: sha256:fafd46eef741e6ef1660c05084a1893807572c50b650b85399266d04e82bc0bf
+
+CURRENT EVIDENCE
+================
+Remote classifier:
+- variants2: 80/80
+- variants3: 80/80
+- combined: 160/160
+
+Full live release gates:
+- variants2: 96.25% judged, 42,025 tokens, 84 requests, 0 errors
+- variants3: 96.25% judged, 41,952 tokens, 85 requests, 0 errors
+
+Final affected-category check:
+- NER: 10/10
+- summarization: 9/10
+- remote errors: 0
+
+Docker:
+- public linux/amd64
+- 76,047,173 bytes compressed (0.08 GB)
+- fresh pull and both smoke paths passed
+
+WHY THE 89.5% BUILD IS THE BASELINE
+===================================
+- One remote batch classifier chooses among all eight task categories.
+- The classifier is validated on paraphrased OOD sets.
+- Minimax is primary for QA, math, and sentiment.
+- Kimi is primary for summaries, NER, debugging, logic, and generation.
+- Untestable Gemma models are fallback-only rather than silent primary routes.
+- Full code prompts are preserved, category output schemas are explicit, and
+  structurally incomplete code gets one cross-model retry.
+- Strict deterministic solvers answer only proof-backed cases.
+
+NEXT TOKEN EXPERIMENTS
+======================
+Run exactly one lever per candidate:
+
+1. Token attribution by classifier/category/model/prompt/completion/retry.
+2. Small local ONNX classifier with remote fallback below confidence threshold.
+   Promotion requirement: retain 160/160 classifier accuracy.
+3. Per-category reasoning effort, starting with sentiment, NER, summary, and QA.
+4. Same-category answer batching with per-row validation and individual reruns.
+5. Completion-cap reductions based on measured p95/p99 usage.
+6. Additional deterministic/local answers only at 100% OOD precision.
+
+PROMOTION RULE
+==============
+- Local compile and acceptance checks pass.
+- variants2 and variants3 each remain at least 90% judged.
+- No unexplained pass-to-fail changes.
+- Zero missing answers and remote errors.
+- Actual tokens decrease.
+- The frozen image tag is not overwritten.
+- One configuration/code lever changed.
+
+EXPERIMENT RECORD TEMPLATE
+==========================
+Name:
+Single changed lever:
+Control commit/image:
+Candidate commit/image:
+variants2 accuracy/tokens/errors:
+variants3 accuracy/tokens/errors:
+Official accuracy/tokens/rank:
+Pass-to-fail review:
+Decision: KEEP / REJECT / NEEDS RETEST
+
+RETIRED HISTORY
+===============
+The earlier 42.1%, 47.4%, 57.9%, 65.71%, and 87.5% phases are no longer
+active guidance. Their details remain in Git history and old benchmark artifacts.
+Do not repeat those recovery plans unless new evidence directly requires it.

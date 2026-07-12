@@ -36,6 +36,21 @@ def solve(prompt: str) -> str | None:
     return None
 
 
+def solve_strict(prompt: str) -> str | None:
+    """Solve only explicit arithmetic forms with no inferred real-world operation.
+
+    These handlers read the exact operator from the prompt and recompute the result. Word
+    problems, averages, probability prose, geometry, and invalid/unanswerable judgments are
+    intentionally excluded because their interpretation can shift out of distribution.
+    """
+    text = normalize(prompt)
+    for handler in (_percent_of, _square_of, _direct_expression):
+        answer = handler(text)
+        if answer is not None:
+            return answer
+    return None
+
+
 def _is_division_by_zero(lower: str) -> bool:
     return bool(
         re.search(r"\b(divided by|divide by|division by)\s+zero\b", lower)
@@ -179,6 +194,10 @@ def _self_check() -> None:
     assert solve("What is 10 divided by zero?") == UNANSWERABLE
     assert solve("A triangle has side lengths 2 cm, 3 cm, and 10 cm. What is its area?") == UNANSWERABLE
     assert solve("How many apples did Joan keep after a complicated trade?") is None
+    assert solve_strict("What is 25 x 4?") == "100"
+    assert solve_strict("What is 15% of 200?") == "30"
+    assert solve_strict("A car travels 60 km/h for 3.5 hours. How far does it travel?") is None
+    assert solve_strict("What is the average of 2, 4, and 9?") is None
 
 
 if __name__ == "__main__":

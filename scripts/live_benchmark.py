@@ -124,11 +124,16 @@ def _env_for_run(args: argparse.Namespace, mock_base_url: str | None) -> dict[st
                 "ALLOWED_MODELS": "mock-8b-instruct",
             }
         )
+        if args.allowed_models:
+            env["ALLOWED_MODELS"] = args.allowed_models
         if not args.mock_local_model:
             env["AGENT_FORCE_STUB"] = "1"
         else:
             env.pop("AGENT_FORCE_STUB", None)
         return env
+
+    if args.allowed_models:
+        env["ALLOWED_MODELS"] = args.allowed_models
 
     missing = [
         name
@@ -512,6 +517,11 @@ def main() -> int:
     parser.add_argument("--container-cpus", type=float, default=2.0)
     parser.add_argument("--container-memory", default="4g")
     parser.add_argument("--env-file", default=".env.local", help="local env file for Fireworks credentials")
+    parser.add_argument(
+        "--allowed-models",
+        default="",
+        help="override ALLOWED_MODELS for a controlled model-policy run",
+    )
     parser.add_argument("--out-dir", help="directory for results, ledger, and report")
     parser.add_argument("--wall-seconds", type=float, default=510.0)
     parser.add_argument("--remote-timeout", type=float, default=25.0)
