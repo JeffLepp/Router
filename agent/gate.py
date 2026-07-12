@@ -53,9 +53,27 @@ STRICT_SOLVERS: dict[str, Solver] = {
 }
 
 
+# Full arithmetic/wordmath chain for math only; every other category still defers.
+# Precision gate: scripts/math_audit must show 0 wrong labels on all datasets.
+MATH_FULL_SOLVERS: dict[str, Solver] = {
+    category: (
+        _first(arithmetic.solve, wordmath.solve)
+        if category == "math_reasoning"
+        else _defer
+    )
+    for category in CATEGORIES
+}
+
+PROFILES: dict[str, dict[str, Solver]] = {
+    "legacy": SOLVERS,
+    "strict": STRICT_SOLVERS,
+    "math_full": MATH_FULL_SOLVERS,
+}
+
+
 def solve(category: str, prompt: str, profile: str = "legacy") -> str | None:
     """Return a mechanically proven answer, or None to escalate."""
-    solvers = STRICT_SOLVERS if profile == "strict" else SOLVERS
+    solvers = PROFILES.get(profile, SOLVERS)
     solver = solvers.get(canonical_category(category), _defer)
     return solver(prompt)
 
@@ -70,6 +88,10 @@ def _self_check() -> None:
     assert solve("logic_puzzles", "If today is Tuesday, what day is it in 3 days?", profile="strict") is None
     assert set(SOLVERS) == set(CATEGORIES)
     assert set(STRICT_SOLVERS) == set(CATEGORIES)
+    assert set(MATH_FULL_SOLVERS) == set(CATEGORIES)
+    assert solve("math_reasoning", "What is 7 raised to the third power?", profile="math_full") == "343"
+    assert solve("sentiment_analysis", "I absolutely loved it.", profile="math_full") is None
+    assert solve("summarization", "Summarize this paragraph.", profile="math_full") is None
 
 
 if __name__ == "__main__":
