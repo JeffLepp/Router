@@ -112,7 +112,7 @@ answer failures; the prefilter changed deferred-batch composition and a
 20-row classifier call silently truncated at 1,024 tokens; noun-trigger
 prefilter rules broke on near-miss task shapes.
 
-## Phase 4 candidate (classifier compression) — READY TO SUBMIT
+## Phase 4 postmortem (official: 89.5%, 11,673 tokens — REJECTED)
 
 Image: `jeffklin303/amd-router:phase4-classifier-compression-9b2845c`
 Digest: `sha256:059e1c649a7a76db02384d49ff1adc1f992daff35d133ebb91f7a4e2587fbdd5`
@@ -141,13 +141,16 @@ Evidence (all gates green):
 - Classifier stage tokens: v2 7,315 -> 5,317 (-27%), v3 6,811 -> 5,243 (-23%).
 - Container smoke vs mock: classifier parsed 4/4, contracts intact.
 
-Prediction (what the feedback means):
-- Accuracy should be exactly 94.7%. If it moves at all, the only possible
-  suspect is hidden-set classifier labeling — revert to the Phase 1 image.
-- Tokens forecast band: **11,200-11,700** (vs 12,012). The delta cleanly
-  measures the classifier's hidden-set share since nothing else changed.
-  This lever does not alter answer batching, so lesson 4 (ratios don't
-  transfer across batching changes) applies less than it did to Phase 3.
+Official outcome:
+- Accuracy fell from Phase 1's **94.7% (18/19)** to **89.5% (17/19)**.
+  Aggregate feedback cannot identify whether the extra miss came from a hidden
+  classifier label or provider completion variance.
+- Tokens fell from **12,012** to **11,673**, a saving of only **339 tokens
+  (2.8%)**. This landed inside the 11,200-11,700 forecast band, only 27 tokens
+  below its upper edge, because the classifier-only lever left the dominant
+  answer-generation path unchanged.
+- The accuracy loss is not worth the small token saving. Do not submit this
+  image; the final submission remains the frozen Phase 1 image.
 
 ## Release evidence
 
