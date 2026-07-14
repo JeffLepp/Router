@@ -1,169 +1,100 @@
-# Hybrid Token-Efficient Router
+# Hybrid Token-Efficient LLM Router
 
-**AMD Developer Hackathon ACT II — Track 1 (General-Purpose AI Agent)**
+**Team Simple Solutions — AMD Developer Hackathon ACT II, Track 1 (General-Purpose AI Agent)**
 
-An LLM router that answers a hidden benchmark of ~19 tasks across 8 categories,
-scored on a **gate-then-rank** rule: clear 80% accuracy or score nothing, then
-among passing submissions **the fewest API tokens wins**.
+A production-style LLM router that answers a hidden benchmark of ~19 tasks across
+8 categories at the lowest possible API cost. Judged on a **gate-then-rank** rule:
+clear 80% accuracy or score nothing — then among the submissions that qualify,
+**fewest tokens wins**.
 
-Final submission: **94.7% accuracy on 12,012 tokens** — up from a 42.1% first
-attempt, across six graded submissions, three of which I caught as regressions
-and rolled back.
+| Final result | |
+|---|---|
+| **Accuracy** | **84.2%** (gate: 80%) |
+| **Tokens** | **10,687** |
+| **Rank** | **91st of 143 scored submissions** — a further **249 did not qualify** |
+| **Peak accuracy** | **94.7%** on 12,012 tokens (earlier submission) |
+| **Field** | 20,727 participants · 4,894 teams · 1,152 submissions |
 
 <p align="center">
-  <img src="docs/leaderboard.png" alt="AMD Track 1 automated scoring leaderboard, showing scored submissions and the did-not-qualify count" width="840">
-  <br>
-  <em>Track 1's automated leaderboard: 143 submissions cleared the accuracy gate and were scored;<br>a further <strong>249 did not qualify</strong>. Ranking is by accuracy, ties broken by fewest tokens.</em>
+  <img src="docs/leaderboard.png" alt="AMD Track 1 leaderboard — Team Simple Solutions" width="840">
 </p>
 
 <p align="center">
-  <img src="docs/final-stats.png" alt="Hackathon final stats: 20,727 participants, 4,894 teams, 1,152 final submissions" width="840">
-  <br>
-  <em>Event scale: 20,727 participants, 4,894 teams, 1,152 final submissions across three tracks.</em>
+  <img src="docs/final-stats.png" alt="AMD Hackathon ACT II final stats" width="840">
 </p>
 
 ---
 
-## The submission log
+## What it does
 
-Every behavior-changing build got its own Docker tag, a forecast, and a row in
-[`submission_history.csv`](submission_history.csv). That ledger is the most
-useful thing in this repo — it is the reason I know which of my "improvements"
-actually made things worse.
-
-| # | Submission | Accuracy | Tokens | Rank | Outcome |
-|---|---|---:|---:|---:|---|
-| 0 | Early iterations | 42.1% → 87.5% | — | — | The climb. Retired. |
-| 1 | `accuracy-first` | 89.5% | ~14,000 | 67th | Cleared the gate. Now optimize tokens. |
-| 2 | `phase1-direct-compression` | **94.7%** | **12,012** | — | ✅ **Best on both axes. Final submission.** |
-| 3 | `phase2-aggressive` | 63.2% | — | — | ❌ **Failed the gate.** Scored nothing. |
-| 4 | `phase3-safe-recovery` | 89.5% | 13,005 | 63rd | ❌ Worse on *both* axes. Reverted. |
-| 5 | `phase4-classifier-compression` | 89.5% | 11,673 | — | ❌ Bought 339 tokens for a whole task. Reverted. |
-
-The headline number is Phase 1. Everything after it was an attempt to beat it,
-and everything after it lost. **Knowing that, and shipping Phase 1 anyway, was
-the actual engineering work.**
-
-The runtime on this branch is the Phase 1 build, unmodified — the same code that
-produced the 94.7% / 12,012-token result. The Phase 3 and 4 levers were reverted
-out of the runtime and survive only in Git history.
-
-```text
-jeffklin303/amd-router:phase1-direct-compression-20260711
-sha256:03dd918dd42bad832842456200c3ddd6678470e242d5b6c469aaf1f59def87fa
-```
-
-### Phase 2: how I blew a submission
-
-I stacked three token-saving levers into one build — a prefilter math gate, a
-no-reasoning cut, and aggressive batching — because each looked safe in isolation
-and I wanted to move fast. Local gates were green at 96.25%.
-
-The hidden set returned **63.2%**. Below the 80% gate, so it scored zero.
-
-The postmortem only worked because I was stamping `reasoning_effort` per request
-into the run ledger. It turned up two independent failures: answer-path reasoning
-had been cut off the tasks that needed it, *and* the classifier was silently
-returning partial batches. Either one alone would have been survivable. I had
-shipped both, and with three levers in flight I could not have told you which
-was which.
-
-Two rules came out of that, and they held for the rest of the competition:
-
-- **One behavioral lever per submission.** No exceptions, no "these are related".
-- **A green local gate is not a hidden-set result.** My devsets scored 96%+ on a
-  build that scored 63% for real. Local gates catch regressions; they do not
-  predict the hidden set.
-
-### Phase 3 and 4: negative results, correctly identified
-
-Phase 3 was the careful recovery — one lever, fully gated. It came back **89.5%
-on 13,005 tokens**: one task *worse* and 993 tokens *more expensive* than Phase 1.
-A clean loss on both axes.
-
-Phase 4 attacked the classifier stage, which token attribution had measured at
-17.1% of spend. It landed inside its forecast band (11,673 vs. a predicted
-11,200–11,700) and still got rejected — it saved 339 tokens and cost a whole task.
-The forecast was fine. The lever was just aimed at the wrong 17%; the
-answer-generation path is 82.9% of the tokens and I had left it untouched.
-
-Both were reverted. The frozen Phase 1 image was never overwritten, so reverting
-was a tag change rather than a rebuild.
-
-### Forecast calibration
-
-Each candidate predicted its official token count from the paired local ratio
-*before* submission, and the miss was recorded:
-
-| Phase | Predicted | Actual | Miss |
-|---|---:|---:|---:|
-| 1 | 11,524 | 12,012 | +488 (4.2%) |
-| 3 | 11,000 | 13,005 | +2,005 (18.2%) |
-| 4 | 11,200–11,700 | 11,673 | in band |
-
-Phase 3's miss was itself a signal: the excess was consistent with high-reasoning
-NER forcing per-row fallback instead of batching — a mechanism I would not have
-gone looking for without the gap between forecast and result.
-
----
-
-## How the router works
+Not every task needs a frontier model, and not every task needs one at all. The router
+sorts incoming work by what it actually requires, then spends the minimum to get it right.
 
 ```
 /input/tasks.json
-        |
-        v
-one batched classifier call  ──>  8 task categories
-        |
-        v
-strict deterministic proof gate  ──proven──>  zero-token answer
-        |
+        │
+        ▼
+  ONE batched classifier call ──────►  8 task categories
+        │
+        ▼
+  deterministic proof gate ──proven──►  answered locally, ZERO tokens
+        │
    unresolved
-        v
-validated category route
-  Minimax: QA, math, sentiment
-  Kimi:    summary, NER, debugging, logic, code generation
-        |
-        v
-category contract + output normalization
-        |
-        v
+        ▼
+  validated category route
+     Minimax ──► QA · math · sentiment
+     Kimi    ──► summary · NER · debugging · logic · code generation
+        │
+        ▼
+  category output contract + normalization
+        │
+        ▼
 /output/results.json
 ```
 
-Three decisions carry most of the result:
+**One classifier call, not N.** Every task is labeled in a single batched request instead
+of one call per task. Validated to **160/160** on paraphrased out-of-distribution sets.
 
-**One batched classifier call, not one per task.** All tasks are labeled into 8
-categories in a single request. The classifier is validated on paraphrased
-out-of-distribution sets and scored **160/160**, which is what makes it safe to
-route on.
+**A proof gate that answers for free.** Tasks the router can *prove* — not guess — are
+solved locally at zero API cost. It only accepts proof-backed answers, so it never trades
+accuracy for tokens.
 
-**A deterministic proof gate that answers for free.** Tasks it can *prove* — not
-guess — are answered locally at zero API cost. It accepts only proof-backed
-answers, so it never trades accuracy for tokens.
-
-**Per-category model routing with explicit output contracts.** Category-specific
-schemas and normalization, with a cross-model retry for structurally incomplete
-code. Models that could not be validated stay fallback-only rather than becoming
-silent primary routes.
-
-Full technical detail, evidence tables, and the token-attribution breakdown are
-in [ARCHITECTURE.md](ARCHITECTURE.md).
+**Per-category routing with output contracts.** Each category gets the model that
+benchmarked best on it, plus an explicit output schema, normalization, and a cross-model
+retry for structurally incomplete code.
 
 ---
 
-## What I'd take to the next one
+## How it evolved
 
-- **Instrument before you optimize.** Token attribution said the classifier was
-  17.1% of spend and answer generation was 82.9%. I spent a submission on the 17%
-  anyway. The measurement was sitting right there and I did not act on it.
-- **The ledger is the product.** Six submissions, three regressions. Without a
-  written prediction-vs-result row for each, "which change hurt us?" is
-  unanswerable — the hidden set returns nothing but an aggregate score.
-- **Freeze your best artifact.** The Phase 1 image and digest were never
-  overwritten. Three separate rollbacks were free because of it.
-- **Negative results are results.** Half this repo's value is a record of what
-  did not work, and why.
+Nine graded submissions against a hidden set that returns nothing but an aggregate score.
+Every build got its own Docker tag, a predicted token count, and a row in
+[`submission_history.csv`](submission_history.csv) — which is how regressions got caught
+at all.
+
+| Submission | Accuracy | Tokens | Rank | |
+|---|---:|---:|---:|---|
+| Early iterations | 42.1% → 87.5% | — | — | Finding the architecture |
+| Accuracy-first | 89.5% | ~14,000 | 67th | Cleared the gate |
+| **Direct compression** | **94.7%** | **12,012** | — | **Accuracy peak** |
+| Aggressive compression | 63.2% | — | — | Failed the gate — reverted |
+| Safe recovery | 89.5% | 13,005 | 63rd | Worse on both axes — reverted |
+| Classifier compression | 89.5% | 11,673 | — | Saved 339 tokens, cost a task — reverted |
+| **Final** | **84.2%** | **10,687** | **91st** | **Shipped** |
+
+The arc is accuracy first, then cost. Once the 80% gate was cleared, ranking is decided
+purely on tokens — so the back half of the project is a controlled hunt for spend, one
+lever at a time, with a paired local gate and a token forecast before every submission.
+
+Three of those experiments made things *worse* on the hidden set. Each was caught,
+attributed, and rolled back to a frozen image rather than shipped.
+
+---
+
+## Stack
+
+Python · Docker (`linux/amd64`, 0.08 GB) · Fireworks AI inference · Minimax · Kimi ·
+batched classification · deterministic solvers · LLM-as-judge evaluation harness
 
 ---
 
@@ -171,44 +102,19 @@ in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ```bash
 pip install -r requirements.txt
-```
-
-Free gates, before any paid experiment:
-
-```powershell
-python -m py_compile agent\classify.py agent\contracts.py agent\main.py agent\remote.py
-python -m eval.score
-python -m scripts.acceptance_p1
-python -m scripts.live_benchmark --mock --out-dir .\benchmark_runs\mock-agent-check
-```
-
-Paid variant gates, only after the free ones pass:
-
-```powershell
-python -m scripts.live_benchmark --dataset eval\devset\variants2.json --score-judge --env-file .env.local --out-dir benchmark_runs\candidate-v2
-python -m scripts.live_benchmark --dataset eval\devset\variants3.json --score-judge --env-file .env.local --out-dir benchmark_runs\candidate-v3
-```
-
-Forecast the official token delta from paired control/candidate reports:
-
-```powershell
-python -m scripts.submission_forecast --baseline <control-v2> <control-v3> --candidate <candidate-v2> <candidate-v3>
-```
-
-Build the submission image:
-
-```bash
 docker build --platform linux/amd64 -t router:submission .
 ```
 
-The judging harness supplies `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, and
-`ALLOWED_MODELS`. The router bundles no credentials and no hardcoded provider
-model IDs; every remote request goes through the supplied base URL.
+The judging harness supplies `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, and `ALLOWED_MODELS`.
+No credentials or hardcoded model IDs are bundled; every request goes through the supplied
+base URL.
 
-## Promotion rule
+Local gates, before any paid run:
 
-The rule that survived contact with the hidden set:
+```powershell
+python -m eval.score                                    # deterministic solver + scoring gate
+python -m scripts.live_benchmark --mock                 # full pipeline, no API spend
+python -m scripts.submission_forecast --baseline <control> --candidate <candidate>
+```
 
-> Freeze the accuracy image. Change **one** lever. Compare paired outputs.
-> Do not promote if either variant set regresses, a new remote error appears,
-> or the official score drops below the gate.
+Technical detail, evidence tables, and token attribution: [ARCHITECTURE.md](ARCHITECTURE.md)

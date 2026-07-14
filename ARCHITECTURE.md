@@ -1,23 +1,28 @@
 # Architecture and Results
 
-Last updated: 2026-07-11. Current phase: token optimization after passing the
-official accuracy gate.
+Technical companion to the [README](README.md). Competition closed 2026-07-13.
 
-## Decision baseline
+## Final result
 
-| Metric | Current value |
+| Metric | Value |
 |---|---:|
-| Official accuracy | **94.7%** (approximately 18/19) |
-| Official tokens | **12,012** |
-| Official placement | previous reported rank 67th; Phase 1 rank not reported |
-| Required accuracy | above 80% |
-| Two additional misses | 16/19 = 84.2% |
-| Three additional misses | 15/19 = 78.9% - below target |
+| Final accuracy | **84.2%** (16/19) |
+| Final tokens | **10,687** |
+| Final rank | **91st** of 143 scored Track 1 submissions |
+| Accuracy peak | **94.7%** (18/19) on 12,012 tokens |
+| Required accuracy | above 80% (gate-then-rank; below the gate scores nothing) |
+
+Scoring moves in 5.26-point steps on 19 tasks: 18/19 = 94.7%, 17/19 = 89.5%,
+16/19 = 84.2%, 15/19 = 78.9% — below the gate. Every token cut was therefore a
+bet against a two-task margin.
+
+The accuracy-peak image was frozen and never overwritten, which is what made the
+three mid-competition rollbacks free:
+
+| | |
+|---|---|
 | Frozen image | `jeffklin303/amd-router:phase1-direct-compression-20260711` |
 | Frozen digest | `sha256:03dd918dd42bad832842456200c3ddd6678470e242d5b6c469aaf1f59def87fa` |
-
-The project has a two-task floor margin. Token efficiency is now the goal, but
-paired local regressions still require an explanation before promotion.
 
 ## Runtime architecture
 
@@ -81,9 +86,11 @@ official roster to move sentiment and NER onto untested Gemma primaries.
 
 ### Official
 
-The latest saved submission scored **94.7%** (about 18/19) using **12,012
-tokens**. It is the Phase 1 direct-output compression image. The previous rank
-was 67th; no updated rank was reported.
+The final scored submission took **84.2%** (16/19) on **10,687 tokens**, ranking
+**91st** of 143 scored Track 1 submissions. The accuracy peak earlier in the run
+was **94.7%** (18/19) on **12,012 tokens** — the Phase 1 direct-output compression
+image, which remains the frozen artifact above. Per-submission results, forecasts,
+and forecast misses are in [`submission_history.csv`](submission_history.csv).
 
 ### Local live release gates
 
