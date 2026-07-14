@@ -8,6 +8,7 @@ Technical companion to the [README](README.md). Competition closed 2026-07-13.
 |---|---:|
 | Final accuracy | **84.2%** (16/19) |
 | Final tokens | **10,687** |
+| Final rank | **91st place** |
 | Accuracy peak | **94.7%** (18/19) on 12,012 tokens |
 | Required accuracy | above 80% (gate-then-rank; below the gate scores nothing) |
 
@@ -85,8 +86,8 @@ official roster to move sentiment and NER onto untested Gemma primaries.
 
 ### Official
 
-The final scored submission took **84.2%** (16/19) on **10,687 tokens**. The accuracy
-peak earlier in the run was **94.7%** (18/19) on **12,012 tokens** — the Phase 1
+The final scored submission took **84.2%** (16/19) on **10,687 tokens**, placing **91st**.
+The accuracy peak earlier in the run was **94.7%** (18/19) on **12,012 tokens** — the Phase 1
 direct-output compression image, which remains the frozen artifact above.
 Per-submission results, forecasts, and forecast misses are in
 [`submission_history.csv`](submission_history.csv).
