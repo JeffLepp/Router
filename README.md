@@ -11,7 +11,6 @@ clear 80% accuracy or score nothing — then among the submissions that qualify,
 |---|---|
 | **Accuracy** | **84.2%** (gate: 80%) |
 | **Tokens** | **10,687** |
-| **Rank** | **91st of 143 scored submissions** — a further **249 did not qualify** |
 | **Peak accuracy** | **94.7%** on 12,012 tokens (earlier submission) |
 | **Field** | 20,727 participants · 4,894 teams · 1,152 submissions |
 
@@ -80,9 +79,9 @@ at all.
 | Aggressive compression | 63.2% | — | — | Failed the gate — reverted |
 | Safe recovery | 89.5% | 13,005 | 63rd | Worse on both axes — reverted |
 | Classifier compression | 89.5% | 11,673 | — | Saved 339 tokens, cost a task — reverted |
-| **Final** | **84.2%** | **10,687** | **91st** | **Shipped** |
+| **Final** | **84.2%** | **10,687** | — | **Shipped** |
 
-The arc is accuracy first, then cost. Once the 80% gate was cleared, ranking is decided
+The arc is accuracy first, then cost. Once the 80% gate was cleared, scoring is decided
 purely on tokens — so the back half of the project is a controlled hunt for spend, one
 lever at a time, with a paired local gate and a token forecast before every submission.
 
