@@ -44,6 +44,15 @@ The headline number is Phase 1. Everything after it was an attempt to beat it,
 and everything after it lost. **Knowing that, and shipping Phase 1 anyway, was
 the actual engineering work.**
 
+The runtime on this branch is the Phase 1 build, unmodified — the same code that
+produced the 94.7% / 12,012-token result. The Phase 3 and 4 levers were reverted
+out of the runtime and survive only in Git history.
+
+```text
+jeffklin303/amd-router:phase1-direct-compression-20260711
+sha256:03dd918dd42bad832842456200c3ddd6678470e242d5b6c469aaf1f59def87fa
+```
+
 ### Phase 2: how I blew a submission
 
 I stacked three token-saving levers into one build — a prefilter math gate, a

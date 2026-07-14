@@ -254,13 +254,8 @@ class RemoteClient:
         return alive or self.models
 
     def _reasoning_effort(self, model: str, call: RemoteCall) -> str:
-        if model in self._no_reasoning_param:
+        if model in self._no_reasoning_param or call.task_id.startswith("classifier:"):
             return ""
-        if call.task_id.startswith("classifier:"):
-            # Omitting the param lets the model reason by default: measured 300-1,000 hidden
-            # completion tokens per classifier batch against a ~110-token visible JSON.
-            # Explicit "none" is label-only spend; the classifier audit gates label parity.
-            return "none"
         if call.reasoning_effort is not None:
             return call.reasoning_effort
         return resolve_reasoning_effort(
